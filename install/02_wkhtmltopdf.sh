@@ -5,13 +5,16 @@ set -euo pipefail
 echo "Installing wkhtmltopdf (patched Qt) for Odoo..."
 
 ARCH="$(dpkg --print-architecture)"
-if [[ "${ARCH}" != "amd64" ]]; then
-  echo "ERROR: Patched wkhtmltopdf package is only supported on amd64. Detected: ${ARCH}"
+if [[ "${ARCH}" == "amd64" ]]; then
+  DEB="wkhtmltox_0.12.6.1-3.jammy_amd64.deb"
+elif [[ "${ARCH}" == "arm64" ]]; then
+  DEB="wkhtmltox_0.12.6.1-3.jammy_arm64.deb"
+else
+  echo "ERROR: Patched wkhtmltopdf package is only supported on amd64 and arm64 architectures. Detected: ${ARCH}"
   exit 1
 fi
 
 TMP_DIR="/tmp/wkhtmltopdf"
-DEB="wkhtmltox_0.12.6.1-3.jammy_amd64.deb"
 URL="https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-3/${DEB}"
 
 sudo rm -rf "${TMP_DIR}"

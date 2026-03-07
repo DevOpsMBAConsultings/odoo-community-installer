@@ -65,7 +65,7 @@ TAG_NAMES = [
     "Transf. / Deposito a cta. Bancaria",
     "Cheque",
     "Punto de Pago",
-    "Otro",
+    "Método de Pago Otro",
     "Crédito a 30 días",
     "Crédito a 60 días",
     "Crédito a 90 días",
