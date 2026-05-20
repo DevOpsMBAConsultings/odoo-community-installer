@@ -1,173 +1,212 @@
-# Odoo 19 Install – What the Script Does (Checklist)
+# Odoo Community Install – Qué hace el script (Checklist)
 
-Use this list to see everything the script does and to verify nothing is missing after a fresh install.
+Usa esta lista para ver todo lo que hace el script y verificar que nada falta tras una instalación limpia.
 
----
-
-## Before You Run
-
-| Item | Required | Notes |
-|------|----------|--------|
-| Ubuntu 24.04 server | ✅ | Fresh VM or bare metal |
-| Domain name | ✅ | e.g. `erp.example.com` (for Nginx + SSL) |
-| Email for Let's Encrypt | ✅ | Notifications and SSL |
-| (Optional) Remote SSL storage | — | S3/R2 or URL for cert backup/restore |
-| (Optional) `ALLOW_ODOO_PORT=1` | — | Only if you want port 8069 open (no Nginx) |
+> **Versión por defecto: Odoo 18** (estable en producción). Puedes instalar Odoo 19 indicándolo al inicio del script.
 
 ---
 
-## Install Steps (in order)
+## Antes de ejecutar
 
-| Step | Script | What it does |
-|------|--------|---------------|
+| Ítem | Requerido | Notas |
+|------|-----------|-------|
+| Ubuntu 24.04 server | ✅ | VM limpia o bare metal |
+| Nombre de dominio | ✅ | e.g. `erp.example.com` (para Nginx + SSL) |
+| Email para Let's Encrypt | ✅ | Notificaciones y renovación SSL |
+| (Opcional) SSL storage remoto | — | S3/R2 o URL para backup/restore de certificados |
+| (Opcional) `ALLOW_ODOO_PORT=1` | — | Solo si quieres el puerto 8069 abierto (sin Nginx) |
+
+---
+
+## Pasos de instalación (en orden)
+
+| Paso | Script | Qué hace |
+|------|--------|----------|
 | 00 | `00_system_update.sh` | `apt update` / `apt upgrade` |
-| 01 | `01_dependencies.sh` | System packages: git, wget, unzip, python3, build-essential, libpq-dev, libxml2-dev, libjpeg-dev, **libmagickwand-dev**, nodejs, npm, rtlcss, etc. |
-| 02 | `02_postgres.sh` | Install PostgreSQL, create `odoo` user |
-| 02 | `02_wkhtmltopdf.sh` | Install wkhtmltopdf (patched for PDF reports) |
-| 03 | `03_odoo_user_and_folders.sh` | Create `odoo` user, `/opt/odoo/`, `/var/lib/odoo` |
-| 04 | `04_clone_odoo.sh` | Clone Odoo source (e.g. 19) to `/opt/odoo/odoo19/odoo` |
-| 05 | `05_python_venv.sh` | Python venv at `/opt/odoo/odoo19/venv` |
-| 06 | `06_python_dependencies.sh` | Install Odoo `requirements.txt` + **wand** (for sale_product_image) |
-| 07 | `07_odoo_config.sh` | Generate `/etc/odoo19.conf` from template (DB name, admin password, addons_path) |
-| 07 | `07_systemd_service.sh` | Create and enable `odoo19` systemd service |
-| 08 | `08_clone_custom_addons.sh` | See **Custom Addons (08)** below |
-| 09 | `09_init_database.sh` | See **Init database (09)** below |
-| 10 | `10_ufw_firewall.sh` | UFW: allow OpenSSH, 80, 443; optionally 8069 if `ALLOW_ODOO_PORT=1` |
-| 11 | `11_ngnix.sh` | Nginx reverse proxy, Let's Encrypt SSL (certbot), proxy to Odoo on 127.0.0.1:8069 |
-| — | `post/00_health_check.sh` | Check service, wkhtmltopdf, ports, addons_path, custom-addons |
-| — | `post/10_summary.sh` | Summary output |
+| 01 | `01_dependencies.sh` | Paquetes del sistema: git, wget, unzip, python3, build-essential, libpq-dev, libxml2-dev, libjpeg-dev, **libmagickwand-dev**, nodejs, npm, rtlcss, etc. |
+| 02 | `02_postgres.sh` | Instalar PostgreSQL, crear usuario `odoo` |
+| 02 | `02_wkhtmltopdf.sh` | Instalar wkhtmltopdf (versión parcheada para reportes PDF) |
+| 03 | `03_odoo_user_and_folders.sh` | Crear usuario `odoo`, `/opt/odoo/`, `/opt/odoo/oca/`, `/var/lib/odoo`, `/var/log/odoo` |
+| 04 | `04_clone_odoo.sh` | Clonar fuente de Odoo (e.g. 18) en `/opt/odoo/odoo18/odoo` |
+| 05 | `05_python_venv.sh` | Python venv en `/opt/odoo/odoo18/venv` |
+| 06 | `06_python_dependencies.sh` | Instalar `requirements.txt` de Odoo + **wand** |
+| 07 | `07_odoo_config.sh` | Generar `/etc/odoo18.conf` desde template (DB, admin password, addons_path con rutas OCA incluidas) |
+| 07 | `07_systemd_service.sh` | Crear y habilitar el servicio systemd `odoo18` |
+| **08a** | **`08_clone_oca_addons.sh`** | **Ver OCA Addons (08a) abajo** |
+| 08b | `08_clone_custom_addons.sh` | **Ver Custom Addons (08b) abajo** |
+| 09 | `09_init_database.sh` | **Ver Init database (09) abajo** |
+| 10 | `10_ufw_firewall.sh` | UFW: permitir OpenSSH, 80, 443; opcionalmente 8069 si `ALLOW_ODOO_PORT=1` |
+| 11 | `11_ngnix.sh` | Nginx reverse proxy, SSL Let's Encrypt (certbot), proxy a Odoo en 127.0.0.1:8069 |
+| — | `post/00_health_check.sh` | Verificar servicio, wkhtmltopdf, puertos, addons_path, addons |
+| — | `post/10_summary.sh` | Resumen de instalación |
 
 ---
 
-## Custom Addons (08) – in detail
+## OCA Addons (08a) – en detalle
+
+**Script:** `install/08_clone_oca_addons.sh`
+
+Este script se ejecuta **solo si el usuario confirmó instalar módulos OCA** durante las preguntas iniciales de `install.sh`.
+
+| Ítem | Detalle |
+|------|---------|
+| **Fuente** | Variable `OCA_REPOS_LIST` (URLs, una por línea) calculada por `install.sh` desde `config/oca_repos.conf` |
+| **Rama** | `{ODOO_VERSION}.0` (e.g. `18.0`). Si no existe, usa la rama por defecto |
+| **Destino** | `/opt/odoo/oca/<repo-name>/` — separado de los addons propios |
+| **addons_path** | Cada `/opt/odoo/oca/<repo>` ya fue inyectado en `/etc/odoo{VERSION}.conf` por el paso 07 vía `{{OCA_ADDON_PATHS}}` |
+| **Python deps** | Instala `requirements.txt` de cada repo usando el venv de Odoo |
+| **Permisos** | `chown -R odoo:odoo /opt/odoo/oca && chmod -R 755 /opt/odoo/oca` |
+
+**Qué ocurre si el usuario dice NO a OCA:**
+- `OCA_REPOS_LIST` queda vacío → el script detecta esto y sale limpiamente sin hacer nada
+- `OCA_ADDON_PATHS` queda vacío → el template genera `addons_path` sin rutas OCA
+
+**addons_path resultante en `/etc/odoo18.conf` (con OCA):**
+```ini
+addons_path = /opt/odoo/auto-addons,/opt/odoo/odoo18/odoo/addons,/opt/odoo/oca/account-financial-reporting,/opt/odoo/oca/account-financial-tools,...,/opt/odoo/custom-addons
+```
+
+**Repos OCA disponibles para Odoo 18** (definidos en `config/oca_repos.conf`):
+
+| Repositorio OCA | Equivalente Enterprise |
+|---|---|
+| `account-financial-reporting` | Reportes financieros (trial balance, etc.) |
+| `account-financial-tools` | Dashboard contable, activos fijos, `account_usability` |
+| `account-reconcile` | Widget de conciliación bancaria |
+| `reporting-engine` | Exportación Excel (`report_xlsx`) |
+| `web` | Herramientas web adicionales |
+| `server-tools` | Herramientas técnicas del servidor |
+| `server-ux` | `date_range`, `base_tier_validation`, UX |
+| `server-brand` | Elimina banners y advertencias Enterprise |
+| `mis-builder` | P&L y Balance dinámico con fórmulas de cuentas |
+| `contract` | Suscripciones y facturación recurrente |
+| `helpdesk` | Mesa de soporte con SLA |
+| `dms` | Sistema de gestión documental |
+| `sign` | Firma electrónica simple |
+| `stock-logistics-barcode` | App de código de barras para inventario |
+| `manufacture` | PLM y Control de Calidad MRP |
+| `purchase-workflow` | Aprobaciones multi-nivel en compras |
+| `sale-workflow` | Aprobaciones multi-nivel en ventas |
+
+Para añadir repos o soportar otra versión: edita `config/oca_repos.conf`.
+
+---
+
+## Custom Addons (08b) – en detalle
 
 **Script:** `install/08_clone_custom_addons.sh`
 
-| Item | Detail |
-|------|--------|
-| **Source** | `custom_addons.txt` in the repo root. |
-| **Target** | `/opt/odoo/custom-addons` – all addons end up here. |
+| Ítem | Detalle |
+|------|---------|
+| **Fuente** | `custom_addons.txt` en la raíz del repo (para repos propios/privados) |
+| **Destino** | `/opt/odoo/custom-addons/` |
+| **Proceso** | Lee `custom_addons.txt` línea por línea, clona cada repo, escanea módulos (`__manifest__.py`), crea symlinks en `/opt/odoo/auto-addons/`, instala `requirements.txt` si existe |
+| **Autenticación** | Usa `GITHUB_TOKEN` si se proporcionó, o SSH para repos privados |
+| **Permisos** | `chown -R odoo:odoo /opt/odoo/custom-addons` |
 
-**Process:**
-1. Reads `custom_addons.txt` line by line.
-2. Clones each repository into `/opt/odoo/custom-addons`.
-3. Handles private repositories via standard SSH authentication (assumes SSH keys are loaded).
-4. `chown -R odoo:odoo /opt/odoo/custom-addons`.
-- List all `__manifest__.py` under `custom-addons` (maxdepth 2).
-- If **zero** manifests found → script exits 1.
-- `systemctl restart odoo19`; check service is active (or warn).
+**Separación de responsabilidades:**
 
-**Order:** ZIPs are processed in shell glob order (no guaranteed order). Odoo resolves module dependency order at install time in step 09.
+| Directorio | Propósito |
+|---|---|
+| `/opt/odoo/oca/` | Repos oficiales OCA — gestionados automáticamente por `install.sh` + `08_clone_oca_addons.sh` |
+| `/opt/odoo/custom-addons/` | Tus módulos propios/privados — gestionados vía `custom_addons.txt` |
+| `/opt/odoo/auto-addons/` | Symlinks a módulos individuales detectados en `custom-addons` (generado automáticamente) |
 
 ---
 
-## Init database (09) – in detail
+## Init database (09) – en detalle
 
 **Script:** `install/09_init_database.sh`
 
-**Paths and variables (from env or defaults):**
+**Variables de entorno:**
 
-| Variable | Default | Meaning |
-|----------|---------|---------|
-| `DB_NAME` | `odoo${ODOO_VERSION}` | e.g. `odoo19` |
-| `ODOO_LANG` | `es_PA` | Language loaded with base (e.g. Spanish Panama) |
-| `ODOO_COUNTRY_CODE` | `PA` | Default company country + contact default (ISO code) |
-| `ODOO_WITHOUT_DEMO` | `1` | No demo data |
-| `ODOO_INIT_MODULES` | *(empty)* | If set: only these modules installed (comma-separated). If unset: see below. |
-| `ODOO_EXTRA_MODULES` | `sale,purchase,crm,stock,contacts,account` | Standard Odoo apps always added to the install list unless set empty. |
+| Variable | Por defecto | Significado |
+|----------|-----------|-----------  |
+| `DB_NAME` | `odoo${ODOO_VERSION}` | e.g. `odoo18` |
+| `ODOO_LANG` | `es_PA` | Idioma cargado con base |
+| `ODOO_COUNTRY_CODE` | `PA` | País por defecto de la empresa |
+| `ODOO_WITHOUT_DEMO` | `1` | Sin datos de demo |
+| `ODOO_INIT_MODULES` | *(vacío)* | Si se define: solo estos módulos. Si no: ver abajo. |
+| `ODOO_EXTRA_MODULES` | `sale,purchase,crm,stock,contacts,account` | Módulos estándar de Odoo siempre añadidos. |
 
-**How `INIT_MODULES` is built (when `ODOO_INIT_MODULES` is not set):**
+**Cómo se construye `INIT_MODULES`:**
 
-1. Scan `/opt/odoo/custom-addons/`: every directory that contains `__manifest__.py` is added (comma-separated).
-2. If that list is empty → `INIT_MODULES=l10n_pa`.
-3. Append `,${ODOO_EXTRA_MODULES}` (unless `ODOO_EXTRA_MODULES` is empty).
+1. Escanea `/opt/odoo/custom-addons/`: cada directorio con `__manifest__.py` se agrega.
+2. Si la lista queda vacía → `INIT_MODULES=l10n_pa`.
+3. Agrega `,${ODOO_EXTRA_MODULES}` (si no está vacío).
 
-So the install list = **all addons from step 08** + **sale, purchase, crm, stock, contacts, account** (or whatever you set).
+> Los módulos OCA **no** se instalan automáticamente en este paso — se hacen disponibles vía `addons_path` y el usuario los instala desde la UI de Odoo (Apps → Update Apps List).
 
-**Flow A – Database already exists and is initialized** (`ir_module_module` table present):
+**Flow A – Base de datos ya existe:**
 
-1. Run `set_default_country.py`: company country + `res.partner.country_id` default.
-2. Stop Odoo; run `odoo-bin -c ... -d $DB_NAME -i "$INIT_MODULES" --stop-after-init` (install missing modules only). On failure script exits 1 and prints the error.
-3. If `ODOO_COUNTRY_CODE=PA`: run `set_default_taxes_pa.py` (Exento 0% Venta / Compra), then `set_itbms_taxes_pa.py` (ITBMS 10% and 15% Ventas/Compras).
-4. If PA: run **Panama invoicing solution** – sales journal (FE), credit notes journal (NC), fiscal positions Exento de impuestos and Retención de impuestos; then **set_panama_states.py** (PA-01 .. PA-13); then **set_payment_terms_pa.py** (Efectivo, Crédito, etc.).
-5. Start Odoo; exit 0.
+1. `set_default_country.py`: país de empresa + default en `res.partner`.
+2. Detiene Odoo; instala módulos faltantes con `odoo-bin -i "$INIT_MODULES"`.
+3. Si `ODOO_COUNTRY_CODE=PA`: ejecuta scripts de impuestos PA (Exento 0%, ITBMS 10%/15%).
+4. Si PA: diarios FE/NC, posiciones fiscales, provincias PA, términos de pago PA.
+5. Inicia Odoo.
 
-**Flow B – Fresh database (first time):**
+**Flow B – Base de datos nueva (primera vez):**
 
-1. Ensure `/var/lib/odoo` exists; owned by `odoo`; mode 750.
-2. If DB does not exist: `createdb -O odoo $DB_NAME`.
-3. Stop Odoo.
-4. **Init base:** `odoo-bin -c ... -d $DB_NAME -i base --without-demo --load-language=$LANG_CODE --stop-after-init`.
-5. Run `set_default_country.py` (company + contact default country).
-6. **Install all modules:** `odoo-bin -c ... -d $DB_NAME -i "$INIT_MODULES" --stop-after-init` (no `|| true` – failure stops the script).
-7. If `ODOO_COUNTRY_CODE=PA`: run `set_default_taxes_pa.py`, then `set_itbms_taxes_pa.py`.
-8. If PA: run **Panama invoicing solution** – sales journal (FE), credit notes journal (NC), fiscal positions Exento de impuestos and Retención de impuestos; then **set_panama_states.py** (PA-01 .. PA-13); then **set_payment_terms_pa.py**.
-9. Start Odoo.
+1. Verifica `/var/lib/odoo`, propiedad y permisos.
+2. Si no existe la BD: `createdb -O odoo $DB_NAME`.
+3. Detiene Odoo.
+4. Init base: `odoo-bin -i base --without-demo --load-language=$LANG_CODE`.
+5. `set_default_country.py`.
+6. Instala todos los módulos: `odoo-bin -i "$INIT_MODULES"`.
+7. Si PA: scripts de impuestos, diarios, provincias, términos de pago.
+8. Inicia Odoo.
 
-**Scripts used (must be present under `install/scripts/`):**
+**Scripts en `install/scripts/`:**
 
-- `set_default_country.py` – company country + `ir.default` for `res.partner.country_id`.
-- `set_default_taxes_pa.py` – tax group “Exento 0%” and two 0% taxes (sale + purchase) for PA; only runs when country is PA.
-- `set_default_sales_journal.py` – default journal for customer invoices (Facturación electrónica, code FE); runs when PA.
-- `set_default_credit_notes_journal.py` – default journal for credit notes (Notas de Crédito, code NC, dedicated sequence); runs when PA.
-- `set_fiscal_position_exento.py` – fiscal position "Exento de impuestos" with Detectar de forma automática; runs when PA.
-- `set_fiscal_position_retencion.py` – fiscal position "Retención de impuestos" (auto_apply off by default); runs when PA.
-- `set_tax_retencion_impuestos.py` – tax "Retención de Impuestos" (group with 7%), mapped on fiscal position Retención (0% Venta → Retención); runs when PA.
-- `set_panama_states.py` – load Panama provinces/comarcas (PA-01 .. PA-13) into res.country.state; runs when PA.
-- `set_itbms_taxes_pa.py` – tax groups ITBMS 10% and ITBMS 15%, four taxes (10% and 15% Ventas/Compras); runs when PA.
-- `set_payment_terms_pa.py` – default payment terms (Efectivo, Crédito, Crédito a 30/60/90 días, Crédito Otro, Tarjeta Crédito, etc.) in order; credit terms use due 30/60/90 days; runs when PA.
-
----
-
-
-## Add-ons installed by default (from `assets/oca-zips/`)
-
-| Add-on | Purpose |
-|--------|---------|
-| accounting_pdf_reports | PDF accounting reports |
-| main_menu | Main menu layout |
-| mba_partner_phone_pa | Panama phone format on contacts |
-| om_account_accountant | Accounting (OCA) |
-| om_account_asset | Assets |
-| om_account_budget | Budgets |
-| om_account_daily_reports | Daily reports |
-| om_account_followup | Follow-up |
-| om_fiscal_year | Fiscal year |
-| om_recurring_payments | Recurring payments |
-| sale_product_image | Sale order line images (needs wand – installed in step 06) |
+- `set_default_country.py` — país empresa + default `res.partner.country_id`
+- `set_default_taxes_pa.py` — Exento 0% (venta + compra) para PA
+- `set_default_sales_journal.py` — Diario FE para PA
+- `set_default_credit_notes_journal.py` — Diario NC para PA
+- `set_fiscal_position_exento.py` — Posición fiscal Exento de impuestos
+- `set_fiscal_position_retencion.py` — Posición fiscal Retención de impuestos
+- `set_tax_retencion_impuestos.py` — Impuesto Retención (7%)
+- `set_panama_states.py` — Provincias/comarcas PA-01 .. PA-13
+- `set_itbms_taxes_pa.py` — ITBMS 10% y 15% Ventas/Compras
+- `set_payment_terms_pa.py` — Términos de pago estándar de Panamá
 
 ---
 
-## After install – verify checklist
+## Verificación post-instalación
 
-| Check | How to verify |
-|-------|----------------|
-| Odoo service running | `sudo systemctl status odoo19` |
-| Can log in | Open https://YOUR_DOMAIN (or http://IP:8069 if no Nginx) |
-| Default apps installed | Apps menu: Sale, Purchase, CRM, Inventory, Contacts, Invoicing (and custom addons) |
-| Default country (e.g. PA) | Settings / Company / country; new contact default country |
-| 0% taxes (if PA) | Invoicing → Configuration → Taxes: “Exento 0% Venta”, “Exento 0% Compra” |
-| custom-addons in addons_path | `grep addons_path /etc/odoo19.conf` includes `/opt/odoo/custom-addons` |
-| UFW | `sudo ufw status`: 22, 80, 443 (and 8069 only if you set ALLOW_ODOO_PORT=1) |
-| Nginx + SSL | HTTPS works; certificate from Let's Encrypt |
-
----
-
-## Optional (run manually only if needed)
-
-| Item | When / how |
-|------|------------|
-| Default sales journal (FE), credit notes journal (NC), fiscal positions Exento de impuestos and Retención de impuestos | When **PA**: step 09 runs them automatically. For an existing DB or non-PA, run the scripts in `install/scripts/` if needed. |
-| Update Apps list in UI | Apps → Update Apps List (if you add new addons later) |
+| Verificación | Cómo hacerlo |
+|---|---|
+| Servicio Odoo activo | `sudo systemctl status odoo18` |
+| Login funciona | Abrir `https://TU_DOMINIO` |
+| Apps instaladas | Menú Apps: Ventas, Compras, CRM, Inventario, Contactos, Facturación |
+| País por defecto (PA) | Ajustes / Empresa / País; nuevo contacto: país por defecto |
+| Impuestos 0% (si PA) | Facturación → Configuración → Impuestos: "Exento 0% Venta", "Exento 0% Compra" |
+| addons_path incluye OCA | `grep addons_path /etc/odoo18.conf` debe mostrar rutas `/opt/odoo/oca/*` |
+| OCA repos clonados | `ls /opt/odoo/oca/` debe listar todos los repos seleccionados |
+| Rutas no fantasma | `grep addons_path /etc/odoo18.conf \| tr ',' '\n' \| xargs -I{} ls -d {} 2>&1` — ninguna línea con "No such file" |
+| UFW | `sudo ufw status`: 22, 80, 443 (y 8069 solo si `ALLOW_ODOO_PORT=1`) |
+| Nginx + SSL | HTTPS funciona; certificado de Let's Encrypt |
 
 ---
 
-## If something is missing
+## Opcional (ejecutar manualmente si se necesita)
 
-- **Can’t reach Odoo**: Open 8069 in UFW if not using Nginx: `sudo ufw allow 8069/tcp && sudo ufw reload`.
-- **Module install failed**: See output of step 09 or run `09_init_database.sh` again with `--logfile` to capture the error.
-- **Health check**: Run `post/00_health_check.sh` and fix any reported issues.
+| Ítem | Cuándo / Cómo |
+|------|---------------|
+| Instalar módulos OCA en UI | Apps → Update Apps List → buscar e instalar en el orden recomendado en `docs/install_considerations_odoo18.md` |
+| Actualizar repos OCA | `sudo -u odoo git -C /opt/odoo/oca/<repo> pull && systemctl restart odoo18` |
+| Diario FE, NC, posiciones fiscales PA | Si PA: el paso 09 los ejecuta automáticamente. Para BD existente: correr scripts en `install/scripts/`. |
+| Actualizar lista de Apps en UI | Apps → Update Apps List (si añades nuevos addons después) |
 
 ---
 
-*Generated as a recap of the Odoo 19 install script.*
+## Si algo falla
+
+- **No se puede llegar a Odoo**: Abrir 8069 en UFW si no usas Nginx: `sudo ufw allow 8069/tcp && sudo ufw reload`.
+- **Módulo no encontrado**: Verificar que el repo está en `/opt/odoo/oca/` o `/opt/odoo/custom-addons/` y que su ruta está en `addons_path`.
+- **Error de instalación de módulo**: Ver output del paso 09 o volver a correr `09_init_database.sh`.
+- **Iconos rotos en Odoo (después de instalar OCA)**: Ejecutar "Regenerate Assets Bundles" desde el modo desarrollador y limpiar caché del navegador (Ctrl+Shift+R).
+- **Health check**: Correr `post/00_health_check.sh` y corregir los problemas reportados.
+
+---
+
+*Documentación actualizada para reflejar el soporte de módulos OCA con selección automática por versión.*

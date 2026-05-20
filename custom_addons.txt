@@ -32,13 +32,3 @@
 # git@github.com:DevOpsMBAConsultings/facturacion_electronica.git
 
 
-git@github.com:DevOpsMBAConsultings/mba_partner_phone_pa.git
-git@github.com:DevOpsMBAConsultings/main_menu.git
-git@github.com:DevOpsMBAConsultings/rs_flexible_chatter_resizer.git
-git@github.com:DevOpsMBAConsultings/sale_product_image.git
-git@github.com:DevOpsMBAConsultings/dynamic_accounts_report.git
-git@github.com:DevOpsMBAConsultings/base_accounting_kit.git
-git@github.com:DevOpsMBAConsultings/base_account_budget.git
-git@github.com:DevOpsMBAConsultings/subscription_package.git
-git@github.com:DevOpsMBAConsultings/web_debug_xml_inspector.git
-git@github.com:DevOpsMBAConsultings/mba_invoicing_icon.git

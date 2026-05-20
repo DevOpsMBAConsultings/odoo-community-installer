@@ -10,7 +10,7 @@ db_name = {{DB_NAME}}
 dbfilter = ^{{DB_NAME}}$
 list_db = False
 
-addons_path = /opt/odoo/auto-addons,/opt/odoo/odoo{{ODOO_VERSION}}/odoo/addons,/opt/odoo/custom-addons
+addons_path = /opt/odoo/auto-addons,/opt/odoo/odoo{{ODOO_VERSION}}/odoo/addons{{OCA_ADDON_PATHS}},/opt/odoo/custom-addons
 
 data_dir = /var/lib/odoo
 logfile = /var/log/odoo/odoo{{ODOO_VERSION}}.log

@@ -80,7 +80,7 @@ run_step() {
 # Defaults / Input
 # -------------------------------------------------------------------
 
-DEFAULT_ODOO_VERSION="19"
+DEFAULT_ODOO_VERSION="18"
 ALLOW_ODOO_PORT="${ALLOW_ODOO_PORT:-0}"
 
 read -r -p "Odoo version to install [${DEFAULT_ODOO_VERSION}]: " ODOO_VERSION
@@ -143,6 +143,69 @@ fi
 read -r -p "Odoo standard modules to install [sale,purchase,crm,stock,contacts,account]: " ODOO_EXTRA_MODULES
 ODOO_EXTRA_MODULES="${ODOO_EXTRA_MODULES:-sale,purchase,crm,stock,contacts,account}"
 
+# -------------------------------------------------------------------
+# OCA Modules — Auto-selection based on Odoo version
+# Source of truth: config/oca_repos.conf
+# Repos clone to:  /opt/odoo/oca/<repo-name>/   (NOT custom-addons)
+# odoo.conf gets:  each /opt/odoo/oca/<repo> added to addons_path
+# -------------------------------------------------------------------
+
+OCA_REPOS_CONF="${REPO_ROOT}/config/oca_repos.conf"
+OCA_REPOS_SELECTED=()
+OCA_ADDON_PATHS=""    # comma-prefixed string injected into odoo.conf template
+OCA_REPOS_LIST=""     # newline-separated URLs passed to 08_clone_oca_addons.sh
+
+if [[ -f "${OCA_REPOS_CONF}" ]]; then
+  VERSION_KEY="[VERSION_${ODOO_VERSION}]"
+  VERSION_END="[/VERSION_${ODOO_VERSION}]"
+  in_block=0
+
+  while IFS= read -r line; do
+    trimmed="$(echo "${line}" | xargs 2>/dev/null || echo "${line}")"
+    [[ "${trimmed}" == "${VERSION_KEY}" ]] && { in_block=1; continue; }
+    [[ "${trimmed}" == "${VERSION_END}" ]] && { in_block=0; continue; }
+    [[ "${in_block}" == "0" ]] && continue
+    [[ -z "${trimmed}" || "${trimmed}" =~ ^# ]] && continue
+    OCA_REPOS_SELECTED+=("${trimmed}")
+  done < "${OCA_REPOS_CONF}"
+fi
+
+if [[ ${#OCA_REPOS_SELECTED[@]} -gt 0 ]]; then
+  echo ""
+  echo "============================================================"
+  echo " OCA Modules disponibles para Odoo ${ODOO_VERSION}"
+  echo "============================================================"
+  echo " Se clonarán en: /opt/odoo/oca/<repo>/"
+  echo " Se agregarán a: addons_path en /etc/odoo${ODOO_VERSION}.conf"
+  echo ""
+  for repo_url in "${OCA_REPOS_SELECTED[@]}"; do
+    echo "   • $(basename "${repo_url}" .git)"
+  done
+  echo ""
+  read -r -p "¿Instalar módulos OCA para Odoo ${ODOO_VERSION}? (s/N) [N]: " INSTALL_OCA
+  INSTALL_OCA="${INSTALL_OCA:-N}"
+
+  if [[ "${INSTALL_OCA,,}" == "s" || "${INSTALL_OCA,,}" == "y" ]]; then
+    for repo_url in "${OCA_REPOS_SELECTED[@]}"; do
+      repo_name="$(basename "${repo_url}" .git)"
+      # Build comma-prefixed addons_path entries for the config template
+      OCA_ADDON_PATHS+=",/opt/odoo/oca/${repo_name}"
+      # Build newline-separated URL list for the clone script
+      OCA_REPOS_LIST+="${repo_url}"$'\n'
+    done
+    OCA_REPOS_LIST="${OCA_REPOS_LIST%$'\n'}"  # trim trailing newline
+    echo "✅ ${#OCA_REPOS_SELECTED[@]} repos OCA configurados:"
+    echo "   • Destino:    /opt/odoo/oca/"
+    echo "   • addons_path incluirá ${#OCA_REPOS_SELECTED[@]} rutas OCA en /etc/odoo${ODOO_VERSION}.conf"
+  else
+    echo "⏭️  OCA modules skipped — addons_path will not include OCA paths."
+  fi
+else
+  echo ""
+  echo "ℹ️  No OCA repos found in ${OCA_REPOS_CONF} for Odoo ${ODOO_VERSION}."
+  echo "   Add a [VERSION_${ODOO_VERSION}] block to config/oca_repos.conf to enable this feature."
+fi
+
 export ODOO_SSL_STORAGE
 export ODOO_VERSION
 export DOMAIN
@@ -151,6 +214,8 @@ export GITHUB_TOKEN
 export ODOO_EXTRA_MODULES
 export ALLOW_ODOO_PORT
 export REPO_ROOT
+export OCA_ADDON_PATHS    # Used by 07_odoo_config.sh → {{OCA_ADDON_PATHS}} in template
+export OCA_REPOS_LIST     # Used by 08_clone_oca_addons.sh to know what to clone
 
 # -------------------------------------------------------------------
 # Verify expected v2 filenames exist before running
@@ -167,6 +232,7 @@ REQUIRED_FILES=(
   "install/06_python_dependencies.sh"
   "install/07_odoo_config.sh"
   "install/07_systemd_service.sh"
+  "install/08_clone_oca_addons.sh"
   "install/08_clone_custom_addons.sh"
   "install/09_init_database.sh"
   "install/10_ufw_firewall.sh"
@@ -199,6 +265,7 @@ run_step "install/05_python_venv.sh"           "Creating Python venv"           
 run_step "install/06_python_dependencies.sh"   "Installing Python dependencies"            1
 run_step "install/07_odoo_config.sh"           "Configuring Odoo"                          0
 run_step "install/07_systemd_service.sh"       "Creating systemd service"                  0
+run_step "install/08_clone_oca_addons.sh"      "Cloning OCA addons → /opt/odoo/oca/"       1
 run_step "install/08_clone_custom_addons.sh"   "Cloning custom addons from Git"            1
 run_step "install/09_init_database.sh"          "Initializing database"                     0
 run_step "install/10_ufw_firewall.sh"          "Configuring firewall"                      1
