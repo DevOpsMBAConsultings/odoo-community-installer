@@ -154,7 +154,7 @@ echo "   Using Python: $VENV_PY"
 if [ -x "$VENV_PY" ]; then
   echo "   ✅ Python venv found"
   # Check Odoo itself is importable
-  if "$VENV_PY" -c "import odoo" >/dev/null 2>&1; then
+  if PYTHONPATH="/opt/odoo/odoo${ODOO_VERSION}" "$VENV_PY" -c "import odoo" >/dev/null 2>&1; then
     echo "   ✅ odoo package importable"
   else
     echo "   ❌ odoo package NOT importable — venv may be incomplete"
