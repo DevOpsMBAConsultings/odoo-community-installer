@@ -191,12 +191,9 @@ INIT_OK="$(
 if [[ "${INIT_OK}" == "1" ]]; then
   echo "Database already initialized. Applying default country, installing any missing modules, and (if PA) 0% taxes + journals + fiscal position."
 
-  # Detect version-aware demo flag (same logic as fresh-install path)
-  if [[ "${ODOO_VERSION}" == "18" ]]; then
-    WITHOUT_DEMO_FLAG="--without-demo"
-  else
-    WITHOUT_DEMO_FLAG="--without-demo=all"
-  fi
+  # Detect version-aware demo flag (always use =all to prevent option swallowing)
+  WITHOUT_DEMO_FLAG="--without-demo=all"
+
 
   run_config_script "${SET_COUNTRY_SCRIPT}" "Setting default country to ${COUNTRY_CODE}..." 0
   # NOTE: language is set AFTER modules are installed so all translations are already loaded
@@ -271,11 +268,7 @@ fi
 #   --without-demo=all : Odoo 19+ also accepts this form but 18 rejects it
 # We detect which form to use based on ODOO_VERSION.
 # ---------------------------------------------------------------------------
-if [[ "${ODOO_VERSION}" == "18" ]]; then
-  WITHOUT_DEMO_FLAG="--without-demo"
-else
-  WITHOUT_DEMO_FLAG="--without-demo=all"
-fi
+WITHOUT_DEMO_FLAG="--without-demo=all"
 
 # INIT BASE — installs base + loads language pack into res.lang
 base_log="/tmp/odoo_base_install.log"
