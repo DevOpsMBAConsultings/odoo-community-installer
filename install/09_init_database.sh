@@ -160,6 +160,15 @@ echo "Defaults: LANG=${LANG_CODE}, COUNTRY=${COUNTRY_CODE}, WITHOUT_DEMO=${WITHO
 [[ -x "${ODOO_PY}" ]] || { echo "Missing venv python"; exit 1; }
 [[ -x "${ODOO_BIN}" ]] || { echo "Missing odoo-bin"; exit 1; }
 
+# ---------------------------------------------------------------------------
+# DEFENSIVE CLEANUP: Stop service and kill any orphaned CLI processes
+# targeting this specific database. This releases all PostgreSQL locks
+# and prevents the script from hanging during DB checks or installations.
+# ---------------------------------------------------------------------------
+echo "Stopping Odoo service and cleaning up any active processes for ${DB_NAME}..."
+sudo systemctl stop "${ODOO_SERVICE}" > /dev/null 2>&1 || true
+sudo pkill -9 -f "odoo-bin.*-d ${DB_NAME}" > /dev/null 2>&1 || true
+
 # Data dir
 sudo mkdir -p "${ODOO_DATA_DIR}"
 sudo chown -R "${ODOO_USER}:${ODOO_USER}" "${ODOO_DATA_DIR}"
@@ -195,9 +204,6 @@ if [[ "${INIT_OK}" == "1" ]]; then
   # Install any missing modules (standard + custom) so first login has apps already installed
   if [[ -n "${INIT_MODULES}" ]]; then
     echo "Installing any missing modules: ${INIT_MODULES}..."
-    echo "(If this step fails, see the Odoo error below; fix dependencies or remove problematic modules from custom-addons and re-run this script.)"
-    sudo systemctl stop "${ODOO_SERVICE}" > /dev/null 2>&1 || true
-
     install_log="/tmp/odoo_install_update.log"
     set +e
     sudo -u "${ODOO_USER}" "${ODOO_PY}" "${ODOO_BIN}" \
@@ -255,9 +261,6 @@ if [[ "${INIT_OK}" == "1" ]]; then
   sudo systemctl start "${ODOO_SERVICE}" 2>/dev/null || true
   exit 0
 fi
-
-# Stop service
-sudo systemctl stop "${ODOO_SERVICE}" > /dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
 # ODOO 18 vs 19+ flag differences:
