@@ -213,6 +213,7 @@ if [[ "${INIT_OK}" == "1" ]]; then
       -d "${DB_NAME}" \
       -i "${INIT_MODULES}" \
       --load-language="${LANG_CODE}" \
+      --max-cron-threads=0 \
       ${WITHOUT_DEMO_FLAG} \
       --stop-after-init > "$install_log" 2>&1
     ret=$?
@@ -286,6 +287,7 @@ sudo -u "${ODOO_USER}" "${ODOO_PY}" "${ODOO_BIN}" \
   -c "${ODOO_CONF}" \
   -d "${DB_NAME}" \
   -i base \
+  --max-cron-threads=0 \
   ${WITHOUT_DEMO_FLAG} \
   --load-language="${LANG_CODE}" \
   --stop-after-init > "$base_log" 2>&1
@@ -322,6 +324,7 @@ if [[ -n "${INIT_MODULES}" ]]; then
     -d "${DB_NAME}" \
     -i "${INIT_MODULES}" \
     --load-language="${LANG_CODE}" \
+    --max-cron-threads=0 \
     ${WITHOUT_DEMO_FLAG} \
     --stop-after-init > "$mod_log" 2>&1
   ret=$?
