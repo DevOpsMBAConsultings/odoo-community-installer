@@ -63,13 +63,27 @@ if [[ "${SSL_STORAGE_TYPE}" == "s3" ]]; then
   if ! command -v aws >/dev/null 2>&1; then
     echo "Installing AWS CLI v2 for S3/R2..."
     apt-get install -y curl unzip
+    # Detect CPU architecture — Oracle Cloud ARM64 needs aarch64 build
+    ARCH="$(uname -m)"
+    case "${ARCH}" in
+      aarch64|arm64) AWS_ARCH="aarch64" ;;
+      x86_64|amd64)  AWS_ARCH="x86_64"  ;;
+      *)             AWS_ARCH="x86_64"  ;;  # best-effort fallback
+    esac
+    AWS_ZIP_URL="https://awscli.amazonaws.com/awscli-exe-linux-${AWS_ARCH}.zip"
+    echo "  Arch detected: ${ARCH} → downloading ${AWS_ZIP_URL}"
     TMP_AWS="/tmp/awscliv2"
-    curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "${TMP_AWS}.zip"
+    curl -fsSL "${AWS_ZIP_URL}" -o "${TMP_AWS}.zip"
     unzip -o -q "${TMP_AWS}.zip" -d /tmp
     /tmp/aws/install -i /usr/local/aws-cli -b /usr/local/bin
     rm -rf "${TMP_AWS}.zip" /tmp/aws
   fi
+  # Sanity-check: verify the installed binary actually runs on this arch
+  if ! aws --version >/dev/null 2>&1; then
+    echo "⚠️  AWS CLI installed but cannot execute (possible arch mismatch). S3 backup will be skipped."
+  fi
 fi
+
 
 # ------------------------------------------------------------
 # Restore from predefined remote storage (so new servers get cert without Certbot)

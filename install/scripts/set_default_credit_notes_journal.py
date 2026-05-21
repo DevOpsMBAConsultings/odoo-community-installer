@@ -63,6 +63,17 @@ with cr_context as cr:
     companies = env["res.company"].search([])
     condition = "move_type=out_refund"
 
+    # Odoo 18 changed account.account.company_id → company_ids (Many2many).
+    # Detect which field exists so the script works on both 18 and 19.
+    account_fields = set(Account.fields_get().keys())
+    if "company_ids" in account_fields:
+        account_company_domain = lambda cid: ("company_ids", "in", [cid])
+    else:
+        account_company_domain = lambda cid: ("company_id", "=", cid)
+
+    # Odoo 18 removed refund_sequence (dedicated sequence is now always on).
+    has_refund_sequence = "refund_sequence" in set(Journal.fields_get().keys())
+
     for company in companies:
         journal = Journal.search(
             [
@@ -83,7 +94,7 @@ with cr_context as cr:
             if not income:
                 income = Account.search(
                     [
-                        ("company_id", "=", company.id),
+                        account_company_domain(company.id),
                         ("account_type", "=", "income"),
                     ],
                     limit=1,
@@ -95,19 +106,19 @@ with cr_context as cr:
                     file=sys.stderr,
                 )
                 continue
-            journal = Journal.create(
-                {
-                    "name": JOURNAL_NAME,
-                    "code": JOURNAL_CODE,
-                    "type": "sale",
-                    "company_id": company.id,
-                    "default_account_id": income.id,
-                    "refund_sequence": True,  # Secuencia de notas de crédito dedicada (NC-0001, ...)
-                }
-            )
+            create_vals = {
+                "name": JOURNAL_NAME,
+                "code": JOURNAL_CODE,
+                "type": "sale",
+                "company_id": company.id,
+                "default_account_id": income.id,
+            }
+            if has_refund_sequence:
+                create_vals["refund_sequence"] = True
+            journal = Journal.create(create_vals)
             print(f"Created journal '{journal.name}' (code {journal.code}) for company {company.name}.")
         else:
-            if not journal.refund_sequence:
+            if has_refund_sequence and not journal.refund_sequence:
                 journal.refund_sequence = True
                 print(f"Enabled 'Secuencia de notas de crédito dedicada' for existing journal '{journal.name}' in company {company.name}.")
             else:

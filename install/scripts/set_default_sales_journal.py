@@ -64,6 +64,14 @@ with cr_context as cr:
     companies = env["res.company"].search([])
     condition = "move_type=out_invoice"
 
+    # Odoo 18 changed account.account.company_id → company_ids (Many2many).
+    # Detect which field exists so the script works on both 18 and 19.
+    account_fields = set(Account.fields_get().keys())
+    if "company_ids" in account_fields:
+        account_company_domain = lambda cid: ("company_ids", "in", [cid])
+    else:
+        account_company_domain = lambda cid: ("company_id", "=", cid)
+
     for company in companies:
         journal = Journal.search(
             [
@@ -84,7 +92,7 @@ with cr_context as cr:
             if not income:
                 income = Account.search(
                     [
-                        ("company_id", "=", company.id),
+                        account_company_domain(company.id),
                         ("account_type", "=", "income"),
                     ],
                     limit=1,

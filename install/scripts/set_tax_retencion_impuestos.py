@@ -237,9 +237,10 @@ with cr_context as cr:
             if g_name == "Retención de impuestos 50%":
                 main_tax_50 = g_tax
 
-
         # ---------------------------------------------------------------------
-        # 4) Fiscal position "Retención de impuestos"
+        # 4) Fiscal position "Retencion de impuestos" — add tax mapping line
+        # In Odoo 19+: account.tax.original_tax_ids / fiscal_position_ids.
+        # In Odoo 18: those fields were removed → use account.fiscal.position.tax lines.
         # ---------------------------------------------------------------------
         fp = FiscalPosition.search([
             ("company_id", "=", company.id),
@@ -255,7 +256,7 @@ with cr_context as cr:
             })
             print(f"  [CREATE] Fiscal position '{FP_NAME}' (fallback created)")
 
-        # Map 0% base tax to our 50% Group Tax Default
+        # Source: 0% sale tax (Exento)
         tax_0_sale = Tax.search([
             ("company_id", "=", company.id),
             ("country_id", "=", country.id),
@@ -263,7 +264,7 @@ with cr_context as cr:
             ("amount", "=", 0.0),
             ("amount_type", "=", "percent"),
         ], limit=1)
-        
+
         if not tax_0_sale:
             tax_0_sale = Tax.search([
                 ("company_id", "=", company.id),
@@ -276,17 +277,41 @@ with cr_context as cr:
         if not tax_0_sale:
             print(f"  [ERROR] source 0% sale tax not found. Cannot set mapping.", file=sys.stderr)
         elif main_tax_50:
-            print(f"  [MAPPING] Configuring {main_tax_50.name} to replace {tax_0_sale.name} when '{fp.name}' is applied...")
-            
-            if tax_0_sale.id not in main_tax_50.original_tax_ids.ids:
-                main_tax_50.write({"original_tax_ids": [(4, tax_0_sale.id)]})
-                print(f"    - Added {tax_0_sale.name} to replaced taxes (original_tax_ids)")
-            
-            if fp.id not in main_tax_50.fiscal_position_ids.ids:
-                main_tax_50.write({"fiscal_position_ids": [(4, fp.id)]})
-                print(f"    - Added {fp.name} to linked fiscal positions (fiscal_position_ids)")
-            
-            print(f"  [MAPPING] Complete: {tax_0_sale.name} -> {main_tax_50.name} in '{fp.name}'")
+            print(f"  [MAPPING] {tax_0_sale.name} → {main_tax_50.name} in '{fp.name}'...")
+
+            # ----------------------------------------------------------------
+            # Try Odoo 19 approach first (original_tax_ids / fiscal_position_ids)
+            # ----------------------------------------------------------------
+            if hasattr(Tax, "original_tax_ids") and "original_tax_ids" in valid_tax_fields:
+                if tax_0_sale.id not in main_tax_50.original_tax_ids.ids:
+                    main_tax_50.write({"original_tax_ids": [(4, tax_0_sale.id)]})
+                    print(f"    - Added {tax_0_sale.name} to original_tax_ids")
+                if fp.id not in main_tax_50.fiscal_position_ids.ids:
+                    main_tax_50.write({"fiscal_position_ids": [(4, fp.id)]})
+                    print(f"    - Added '{fp.name}' to fiscal_position_ids")
+            else:
+                # ----------------------------------------------------------------
+                # Odoo 18 approach: add/update a line in account.fiscal.position.tax
+                # ----------------------------------------------------------------
+                FPTax = env["account.fiscal.position.tax"]
+                existing_line = FPTax.search([
+                    ("position_id", "=", fp.id),
+                    ("tax_src_id", "=", tax_0_sale.id),
+                ], limit=1)
+                if not existing_line:
+                    FPTax.create({
+                        "position_id": fp.id,
+                        "tax_src_id": tax_0_sale.id,
+                        "tax_dest_id": main_tax_50.id,
+                    })
+                    print(f"    - Created fiscal.position.tax line: {tax_0_sale.name} → {main_tax_50.name}")
+                elif existing_line.tax_dest_id.id != main_tax_50.id:
+                    existing_line.write({"tax_dest_id": main_tax_50.id})
+                    print(f"    - Updated fiscal.position.tax line: {tax_0_sale.name} → {main_tax_50.name}")
+                else:
+                    print(f"    - fiscal.position.tax line already correct (no change)")
+
+            print(f"  [MAPPING] Complete: {tax_0_sale.name} → {main_tax_50.name} in '{fp.name}'")
 
     cr.commit()
     print("Done.")

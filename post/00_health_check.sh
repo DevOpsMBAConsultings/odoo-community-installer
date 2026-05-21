@@ -1,19 +1,38 @@
 #!/bin/bash
 set -e
 
-CONF="/etc/odoo19.conf"
-SERVICE="odoo19"
+# ---------------------------------------------------------------------------
+# Version-aware health check. Uses ODOO_VERSION env var (set by install.sh)
+# or falls back to auto-detecting from running services.
+# ---------------------------------------------------------------------------
+
+# Detect version
+if [[ -z "${ODOO_VERSION:-}" ]]; then
+  # Try to detect from running systemd services
+  for v in 18 19 17 16; do
+    if systemctl list-units --type=service --all 2>/dev/null | grep -q "odoo${v}.service"; then
+      ODOO_VERSION="$v"
+      break
+    fi
+  done
+fi
+ODOO_VERSION="${ODOO_VERSION:-18}"
+
+CONF="/etc/odoo${ODOO_VERSION}.conf"
+SERVICE="odoo${ODOO_VERSION}"
 PORT="8069"
 CUSTOM_ADDONS="/opt/odoo/custom-addons"
+OCA_DIR="/opt/odoo/oca"
+VENV_BASE="/opt/odoo/odoo${ODOO_VERSION}/venv"
 
 # Try to detect Odoo venv python from config, fallback to known path
 VENV_PY="$(grep -E '^\s*python3\s*=' "$CONF" 2>/dev/null | cut -d'=' -f2 | xargs || true)"
 if [ -z "$VENV_PY" ]; then
-  VENV_PY="/opt/odoo/odoo19/venv/bin/python3"
+  VENV_PY="${VENV_BASE}/bin/python3"
 fi
 
 echo "==================================="
-echo " ✅ Post-Install Health Check (Odoo 19)"
+echo " ✅ Post-Install Health Check (Odoo ${ODOO_VERSION})"
 echo " Time: $(date)"
 echo "==================================="
 
@@ -36,22 +55,22 @@ fi
 
 echo ""
 echo "3) Listening ports (local):"
-if ss -lntp 2>/dev/null | grep -Eq ":(8069)\s"; then
+if ss -lntp 2>/dev/null | grep -Eq ":(${PORT})\s"; then
   echo "✅ Port $PORT is LISTENING locally"
   ss -lntp 2>/dev/null | grep "$PORT" || true
 else
   echo "⚠️ Port $PORT is NOT listening locally"
-  echo "   Tip: check bind in $CONF (xmlrpc_interface / proxy mode) and logs: sudo journalctl -u $SERVICE -n 200 --no-pager"
+  echo "   Tip: check bind in $CONF and logs: sudo journalctl -u $SERVICE -n 200 --no-pager"
 fi
 
 echo ""
 echo "4) UFW status and port $PORT rule:"
 if command -v ufw >/dev/null 2>&1; then
   ufw status | head -n 25
-  if ufw status | grep -q "$PORT/tcp"; then
-    echo "✅ UFW rule found for $PORT/tcp"
+  if ufw status | grep -q "${PORT}/tcp"; then
+    echo "✅ UFW rule found for ${PORT}/tcp"
   else
-    echo "⚠️ No UFW rule for $PORT/tcp (may be intentional)"
+    echo "⚠️ No UFW rule for ${PORT}/tcp (may be intentional if Nginx is proxying)"
   fi
 else
   echo "⚠️ ufw not installed"
@@ -60,38 +79,62 @@ fi
 echo ""
 echo "5) addons_path check:"
 if [ -f "$CONF" ]; then
-  grep -E "^addons_path" "$CONF" || true
-  if grep -E "^addons_path" "$CONF" | grep -q "$CUSTOM_ADDONS"; then
+  ADDONS_LINE=$(grep -E "^addons_path" "$CONF" || true)
+  echo "$ADDONS_LINE"
+  if echo "$ADDONS_LINE" | grep -q "$CUSTOM_ADDONS"; then
     echo "✅ custom-addons is included in addons_path"
   else
     echo "❌ custom-addons is NOT in addons_path"
+  fi
+  if [ -d "$OCA_DIR" ] && [ -n "$(ls -A "$OCA_DIR" 2>/dev/null)" ]; then
+    if echo "$ADDONS_LINE" | grep -q "$OCA_DIR"; then
+      echo "✅ OCA dir is included in addons_path"
+    else
+      echo "⚠️ OCA dir exists but may not be in addons_path — run: grep addons_path $CONF"
+    fi
   fi
 else
   echo "❌ Config not found: $CONF"
 fi
 
 echo ""
-echo "6) OCA modules present in custom-addons:"
-if [ -d "$CUSTOM_ADDONS" ]; then
-  find "$CUSTOM_ADDONS" -maxdepth 2 -type f -name "__manifest__.py" | sort | head -n 100
-
-  if [ -f "$CUSTOM_ADDONS/base_account_budget/__manifest__.py" ]; then
-    echo "✅ base_account_budget detected"
+echo "6) Addon directories status:"
+for dir in "$CUSTOM_ADDONS" "$OCA_DIR"; do
+  if [ -d "$dir" ]; then
+    COUNT=$(find "$dir" -maxdepth 3 -name "__manifest__.py" 2>/dev/null | wc -l)
+    echo "✅ $dir — ${COUNT} module(s) found"
   else
-    echo "⚠️ base_account_budget NOT detected"
+    echo "⚠️ $dir — directory not present (may be empty install)"
   fi
+done
 
-  if [ -f "$CUSTOM_ADDONS/base_accounting_kit/__manifest__.py" ]; then
-    echo "✅ base_accounting_kit detected"
-  else
-    echo "⚠️ base_accounting_kit NOT detected"
+# Check addons_path entries are all real directories (no phantom paths)
+echo ""
+echo "7) addons_path directory existence check:"
+if [ -f "$CONF" ]; then
+  ADDONS_LINE=$(grep -E "^addons_path\s*=" "$CONF" | sed 's/addons_path\s*=\s*//' || true)
+  if [ -n "$ADDONS_LINE" ]; then
+    IFS=',' read -ra PATHS <<< "$ADDONS_LINE"
+    ALL_OK=true
+    for p in "${PATHS[@]}"; do
+      p="$(echo "$p" | xargs)"  # trim whitespace
+      if [ -d "$p" ]; then
+        echo "  ✅ $p"
+      else
+        echo "  ❌ MISSING: $p"
+        ALL_OK=false
+      fi
+    done
+    if $ALL_OK; then
+      echo "✅ All addons_path directories exist"
+    else
+      echo "❌ Some addons_path directories are missing — Odoo may fail to start"
+    fi
   fi
-else
-  echo "❌ Directory not found: $CUSTOM_ADDONS"
 fi
 
 echo ""
-echo "7) Odoo Master Password (admin_passwd):"
+echo "8) Odoo Master Password (admin_passwd):"
 if [ -f "$CONF" ]; then
   ADMIN_PASSWD=$(grep -E "^\s*admin_passwd\s*=" "$CONF" | cut -d'=' -f2 | xargs || true)
   if [ -n "$ADMIN_PASSWD" ]; then
@@ -106,20 +149,32 @@ else
 fi
 
 echo ""
-echo "8) Python dependency checks (Odoo venv):"
-echo "Using Python: $VENV_PY"
+echo "9) Python venv and key dependencies:"
+echo "   Using Python: $VENV_PY"
 if [ -x "$VENV_PY" ]; then
-  if "$VENV_PY" -c "import qifparse" >/dev/null 2>&1; then
-    echo "✅ qifparse is installed (required by base_accounting_kit)"
+  echo "   ✅ Python venv found"
+  # Check Odoo itself is importable
+  if "$VENV_PY" -c "import odoo" >/dev/null 2>&1; then
+    echo "   ✅ odoo package importable"
   else
-    echo "❌ qifparse is MISSING (required by base_accounting_kit)"
-    echo "   Fix:"
-    echo "   sudo /opt/odoo/odoo19/venv/bin/pip install qifparse"
-    echo "   sudo systemctl restart $SERVICE"
+    echo "   ❌ odoo package NOT importable — venv may be incomplete"
+  fi
+  # Check wand (for sale_product_image)
+  if "$VENV_PY" -c "import wand" >/dev/null 2>&1; then
+    echo "   ✅ wand is installed"
+  else
+    echo "   ⚠️ wand not installed (needed by sale_product_image)"
+    echo "      Fix: sudo ${VENV_BASE}/bin/pip install wand"
+  fi
+  # Check reportlab (for PDF reports)
+  if "$VENV_PY" -c "import reportlab" >/dev/null 2>&1; then
+    echo "   ✅ reportlab is installed"
+  else
+    echo "   ⚠️ reportlab not installed"
   fi
 else
-  echo "❌ Odoo venv python not found/executable at: $VENV_PY"
-  echo "   Check your odoo config python3= setting in $CONF"
+  echo "   ❌ Odoo venv python not found/executable at: $VENV_PY"
+  echo "      Check your python path or re-run step 05_python_venv.sh"
 fi
 
 echo ""

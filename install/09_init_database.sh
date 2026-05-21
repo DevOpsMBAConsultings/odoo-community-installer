@@ -17,6 +17,7 @@ ODOO_SERVICE="odoo${ODOO_VERSION}"
 ODOO_DATA_DIR="/var/lib/odoo"
 CUSTOM_ADDONS="/opt/odoo/custom-addons"
 SET_COUNTRY_SCRIPT="${SCRIPT_DIR}/scripts/set_default_country.py"
+SET_LANGUAGE_SCRIPT="${SCRIPT_DIR}/scripts/set_default_language.py"
 SET_TAXES_SCRIPT="${SCRIPT_DIR}/scripts/set_default_taxes_pa.py"
 SET_SALES_JOURNAL_SCRIPT="${SCRIPT_DIR}/scripts/set_default_sales_journal.py"
 SET_CREDIT_NOTES_JOURNAL_SCRIPT="${SCRIPT_DIR}/scripts/set_default_credit_notes_journal.py"
@@ -111,6 +112,7 @@ run_config_script() {
       ODOO_CONF="${ODOO_CONF}" \
       DB_NAME="${DB_NAME}" \
       ODOO_COUNTRY_CODE="${COUNTRY_CODE}" \
+      ODOO_LANG="${LANG_CODE}" \
       "${ODOO_PY}" "${run_path}" > "$log_file" 2>&1
   local ret=$?
   set -e
@@ -157,6 +159,7 @@ INIT_OK="$(
 if [[ "${INIT_OK}" == "1" ]]; then
   echo "Database already initialized. Applying default country, installing any missing modules, and (if PA) 0% taxes + journals + fiscal position."
   run_config_script "${SET_COUNTRY_SCRIPT}" "Setting default country to ${COUNTRY_CODE}..." 0
+  run_config_script "${SET_LANGUAGE_SCRIPT}" "Setting default language to ${LANG_CODE}..." 0
 
   # Install any missing modules (standard + custom) so first login has apps already installed
   if [[ -n "${INIT_MODULES}" ]]; then
@@ -240,8 +243,8 @@ fi
 rm -f "$base_log"
 
 # Set default country for all companies (by ISO code, e.g. PA = Panama)
-# Copy script to /tmp so user 'odoo' can read it (repo may be under /home/ubuntu with restricted perms)
 run_config_script "${SET_COUNTRY_SCRIPT}" "Setting default country to ${COUNTRY_CODE}..." 0
+# NOTE: set_default_language runs AFTER module install so all translations are loaded first
 
 # Install extra modules (e.g. l10n_pa, sale, purchase, custom add-ons); must be in addons_path (OCA zips run in 08 before this)
 if [[ -n "${INIT_MODULES}" ]]; then
@@ -266,6 +269,9 @@ if [[ -n "${INIT_MODULES}" ]]; then
   fi
   rm -f "$mod_log"
 fi
+
+# Set default language AFTER modules are installed (so all translations from l10n_pa, etc. are loaded)
+run_config_script "${SET_LANGUAGE_SCRIPT}" "Setting default language to ${LANG_CODE} (all users)..." 0
 
 # Run all post-install configuration scripts
 run_config_script "${SET_TAXES_SCRIPT}" "Setting 0% taxes for Panama..." 1
