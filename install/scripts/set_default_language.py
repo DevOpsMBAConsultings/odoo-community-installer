@@ -123,19 +123,17 @@ with cr_context as cr:
         print("WARNING: Administrator user (uid=1) not found.", file=sys.stderr)
 
     # ------------------------------------------------------------------
-    # 3) Optionally set language on all internal users
+    # 3) Optionally set language on all users (internal, portal, public, template, inactive)
     # ------------------------------------------------------------------
     if SET_ALL_USERS:
-        users = env["res.users"].search([
-            ("share", "=", False),   # internal users only (not portal/public)
-            ("active", "=", True),
-        ])
+        # Search all users including inactive, portal, public, templates
+        users = env["res.users"].with_context(active_test=False).search([])
         count = 0
         for user in users:
             if user.lang != LANG_CODE:
                 user.write({"lang": LANG_CODE})
                 count += 1
-        print(f"Set language '{LANG_CODE}' on {count} internal user(s).")
+        print(f"Set language '{LANG_CODE}' on {count} user(s) (including system, templates, public, and inactive users).")
 
     # ------------------------------------------------------------------
     # 4) Set ir.default for res.partner.lang (new contacts default lang)
@@ -161,6 +159,18 @@ with cr_context as cr:
         if hasattr(company, "partner_id") and company.partner_id:
             company.partner_id.write({"lang": LANG_CODE})
     print(f"Set language on {len(companies)} company partner(s).")
+
+    # ------------------------------------------------------------------
+    # 6) Deactivate English (en_US) if it is not the target language
+    # ------------------------------------------------------------------
+    if LANG_CODE != "en_US":
+        try:
+            en_lang = env["res.lang"].with_context(active_test=False).search([("code", "=", "en_US")])
+            if en_lang and en_lang.active:
+                en_lang.write({"active": False})
+                print("Deactivated language 'en_US' to ensure login screen and default system pages render in Spanish.")
+        except Exception as e:
+            print(f"WARNING: Could not deactivate 'en_US' language: {e}", file=sys.stderr)
 
     cr.commit()
     print(f"Done. Default language set to '{LANG_CODE}'.")
