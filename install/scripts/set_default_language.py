@@ -58,24 +58,19 @@ with cr_context as cr:
     env = api.Environment(cr, odoo.SUPERUSER_ID, {})
 
     # ------------------------------------------------------------------
-    # 1) Ensure the language is active in res.lang
+    # 1) Ensure the language is active and loaded in res.lang
     # ------------------------------------------------------------------
     Lang = env["res.lang"]
     lang = Lang.search([("code", "=", LANG_CODE)], limit=1)
 
     if not lang:
         # Language not loaded yet — try to activate it
-        # Odoo 18 NOTE: --load-language at both base init AND module install
-        # is the reliable way. This block is a belt-and-suspenders fallback.
         try:
-            # Odoo 18/19: _activate_lang or load_lang
             if hasattr(Lang, "_activate_lang"):
                 Lang._activate_lang(LANG_CODE)
             elif hasattr(Lang, "load_lang"):
-                # Odoo 16/17 method name
                 Lang.load_lang(LANG_CODE)
             else:
-                # Fallback: search inactive then write active=True
                 lang_inactive = Lang.with_context(active_test=False).search(
                     [("code", "=", LANG_CODE)], limit=1
                 )
@@ -90,6 +85,26 @@ with cr_context as cr:
         if not lang.active:
             lang.active = True
         print(f"Language '{lang.name}' ({LANG_CODE}) is active.")
+
+        # Use Odoo's language install wizard to load translations for all installed modules
+        try:
+            LangInstall = env["base.language.install"]
+            wizard_vals = {}
+            if "lang_ids" in LangInstall._fields:
+                wizard_vals["lang_ids"] = [(6, 0, [lang.id])]
+            elif "lang" in LangInstall._fields:
+                wizard_vals["lang"] = LANG_CODE
+            
+            if wizard_vals:
+                wizard_vals["overwrite"] = True
+                wizard = LangInstall.create(wizard_vals)
+                if hasattr(wizard, "lang_install"):
+                    wizard.lang_install()
+                elif hasattr(wizard, "action_install"):
+                    wizard.action_install()
+                print(f"Successfully loaded translations for language '{LANG_CODE}' via base.language.install wizard.")
+        except Exception as e:
+            print(f"WARNING: Could not load translations via wizard: {e}", file=sys.stderr)
     else:
         print(
             f"WARNING: Language '{LANG_CODE}' not found in res.lang. "
