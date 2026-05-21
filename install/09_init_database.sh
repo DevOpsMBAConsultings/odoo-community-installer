@@ -1,6 +1,25 @@
-# install/09_init_database.sh
 #!/usr/bin/env bash
+# install/09_init_database.sh
 set -euo pipefail
+
+# ---------------------------------------------------------------------------
+# RUN LOG — every invocation appends to a timestamped log so you can audit
+# what worked and what didn't across multiple runs.
+# ---------------------------------------------------------------------------
+LOG_DIR="/var/log/odoo"
+RUN_TS="$(date '+%Y%m%d_%H%M%S')"
+RUN_LOG="${LOG_DIR}/init_db_${RUN_TS}.log"
+
+_setup_run_log() {
+  sudo mkdir -p "${LOG_DIR}"
+  sudo touch "${RUN_LOG}"
+  sudo chmod 644 "${RUN_LOG}"
+  # Tee all stdout+stderr to the log file for the remainder of this script
+  exec > >(sudo tee -a "${RUN_LOG}") 2>&1
+  echo "=== init_database run: $(date) ==="
+  echo "    ODOO_VERSION=${ODOO_VERSION}  DB_NAME=${DB_NAME:-odoo${ODOO_VERSION}}"
+}
+_setup_run_log
 
 : "${ODOO_VERSION:?ODOO_VERSION not set}"
 
@@ -121,10 +140,14 @@ run_config_script() {
 
   if [[ $ret -eq 0 ]]; then
     record_result "$script_name" "SUCCESS" ""
+    # Show output on success too (already tee'd to terminal via exec above)
   else
     local err_msg=$(grep -v "^$" "$log_file" | tail -n 1 | cut -c1-100)
     record_result "$script_name" "FAILED" "$err_msg"
     echo "⚠️  Failed: $script_name"
+    # Append failure details to run log
+    echo "--- FAILED: $script_name ---" >> "${RUN_LOG}" 2>/dev/null || true
+    cat "$log_file" >> "${RUN_LOG}" 2>/dev/null || true
   fi
   rm -f "$log_file"
 }
@@ -158,25 +181,35 @@ INIT_OK="$(
 
 if [[ "${INIT_OK}" == "1" ]]; then
   echo "Database already initialized. Applying default country, installing any missing modules, and (if PA) 0% taxes + journals + fiscal position."
+
+  # Detect version-aware demo flag (same logic as fresh-install path)
+  if [[ "${ODOO_VERSION}" == "18" ]]; then
+    WITHOUT_DEMO_FLAG="--without-demo"
+  else
+    WITHOUT_DEMO_FLAG="--without-demo=all"
+  fi
+
   run_config_script "${SET_COUNTRY_SCRIPT}" "Setting default country to ${COUNTRY_CODE}..." 0
-  run_config_script "${SET_LANGUAGE_SCRIPT}" "Setting default language to ${LANG_CODE}..." 0
+  # NOTE: language is set AFTER modules are installed so all translations are already loaded
 
   # Install any missing modules (standard + custom) so first login has apps already installed
   if [[ -n "${INIT_MODULES}" ]]; then
     echo "Installing any missing modules: ${INIT_MODULES}..."
     echo "(If this step fails, see the Odoo error below; fix dependencies or remove problematic modules from custom-addons and re-run this script.)"
-    sudo systemctl stop "${ODOO_SERVICE}" >/dev/null 2>&1 || true
-    
+    sudo systemctl stop "${ODOO_SERVICE}" > /dev/null 2>&1 || true
+
     install_log="/tmp/odoo_install_update.log"
     set +e
     sudo -u "${ODOO_USER}" "${ODOO_PY}" "${ODOO_BIN}" \
       -c "${ODOO_CONF}" \
       -d "${DB_NAME}" \
       -i "${INIT_MODULES}" \
+      --load-language="${LANG_CODE}" \
+      ${WITHOUT_DEMO_FLAG} \
       --stop-after-init > "$install_log" 2>&1
     ret=$?
     set -e
-    
+
     if [[ $ret -eq 0 ]]; then
       record_result "Install Modules (Update)" "SUCCESS" ""
     else
@@ -184,8 +217,12 @@ if [[ "${INIT_OK}" == "1" ]]; then
       record_result "Install Modules (Update)" "FAILED" "$err"
       echo "⚠️  Module update failed. Continuing..."
     fi
+    cat "$install_log" >> "${RUN_LOG}" 2>/dev/null || true
     rm -f "$install_log"
   fi
+
+  # Set language AFTER modules are installed (all translations from l10n_pa, etc. are now loaded)
+  run_config_script "${SET_LANGUAGE_SCRIPT}" "Setting default language to ${LANG_CODE}..." 0
 
   # Run all post-install configuration scripts
   run_config_script "${SET_TAXES_SCRIPT}" "Setting 0% taxes for Panama..." 1
@@ -212,22 +249,37 @@ if [[ "${INIT_OK}" == "1" ]]; then
     printf "%-45s | %-10s | %s\n" "${R_TASK[$i]}" "${R_STATUS[$i]}" "${R_MSG[$i]}"
   done
   echo "============================"
+  echo ""
+  echo "📋 Full run log saved to: ${RUN_LOG}"
 
   sudo systemctl start "${ODOO_SERVICE}" 2>/dev/null || true
   exit 0
 fi
 
 # Stop service
-sudo systemctl stop "${ODOO_SERVICE}" >/dev/null 2>&1 || true
+sudo systemctl stop "${ODOO_SERVICE}" > /dev/null 2>&1 || true
 
-# INIT BASE (VALID FLAGS ONLY)
+# ---------------------------------------------------------------------------
+# ODOO 18 vs 19+ flag differences:
+#   --without-demo   : Odoo 17/18 uses bare flag (no value)
+#   --without-demo=all : Odoo 19+ also accepts this form but 18 rejects it
+# We detect which form to use based on ODOO_VERSION.
+# ---------------------------------------------------------------------------
+if [[ "${ODOO_VERSION}" == "18" ]]; then
+  WITHOUT_DEMO_FLAG="--without-demo"
+else
+  WITHOUT_DEMO_FLAG="--without-demo=all"
+fi
+
+# INIT BASE — installs base + loads language pack into res.lang
 base_log="/tmp/odoo_base_install.log"
+echo "[Init Base DB] Running: ${WITHOUT_DEMO_FLAG} --load-language=${LANG_CODE}"
 set +e
 sudo -u "${ODOO_USER}" "${ODOO_PY}" "${ODOO_BIN}" \
   -c "${ODOO_CONF}" \
   -d "${DB_NAME}" \
   -i base \
-  --without-demo \
+  ${WITHOUT_DEMO_FLAG} \
   --load-language="${LANG_CODE}" \
   --stop-after-init > "$base_log" 2>&1
 ret=$?
@@ -240,13 +292,17 @@ else
   record_result "Init Base DB" "FAILED" "$err"
   echo "⚠️  Base install failed. Continuing..."
 fi
+cat "$base_log" >> "${RUN_LOG}" 2>/dev/null || true
 rm -f "$base_log"
 
 # Set default country for all companies (by ISO code, e.g. PA = Panama)
 run_config_script "${SET_COUNTRY_SCRIPT}" "Setting default country to ${COUNTRY_CODE}..." 0
 # NOTE: set_default_language runs AFTER module install so all translations are loaded first
 
-# Install extra modules (e.g. l10n_pa, sale, purchase, custom add-ons); must be in addons_path (OCA zips run in 08 before this)
+# Install extra modules (e.g. l10n_pa, sale, purchase, custom add-ons)
+# IMPORTANT: --load-language is repeated here so that any new translation strings
+# introduced by l10n_pa and other localisation modules are also loaded into res.lang.
+# Without this, Odoo 18 installs the modules but leaves the UI in English.
 if [[ -n "${INIT_MODULES}" ]]; then
   echo "Installing modules: ${INIT_MODULES}..."
   echo "(RST/docstring warnings during load are usually harmless.)"
@@ -256,6 +312,8 @@ if [[ -n "${INIT_MODULES}" ]]; then
     -c "${ODOO_CONF}" \
     -d "${DB_NAME}" \
     -i "${INIT_MODULES}" \
+    --load-language="${LANG_CODE}" \
+    ${WITHOUT_DEMO_FLAG} \
     --stop-after-init > "$mod_log" 2>&1
   ret=$?
   set -e
@@ -267,6 +325,7 @@ if [[ -n "${INIT_MODULES}" ]]; then
     record_result "Install Extra Modules" "FAILED" "$err"
     echo "⚠️  Module install failed. Continuing..."
   fi
+  cat "$mod_log" >> "${RUN_LOG}" 2>/dev/null || true
   rm -f "$mod_log"
 fi
 
@@ -288,6 +347,7 @@ run_config_script "${SET_PARTNER_TAGS_SCRIPT}" "Creating partner tags (Etiquetas
 run_config_script "${SET_CONTACTS_VIEW_SCRIPT}" "Setting Contacts default view to Kanban..." 0
 run_config_script "${SET_SALE_UOM_SCRIPT}" "Enabling Units of measure and packaging in Sales..." 0
 run_config_script "${SET_PRODUCTS_SCRIPT}" "Creating default service products (0% tax)..." 1
+run_config_script "${SET_PAPERFORMAT_SCRIPT}" "Configuring default paper format (US Letter, 5mm margins)..." 0
 
 echo ""
 echo "=== INSTALLATION SUMMARY ==="
@@ -297,8 +357,11 @@ for i in "${!R_TASK[@]}"; do
   printf "%-45s | %-10s | %s\n" "${R_TASK[$i]}" "${R_STATUS[$i]}" "${R_MSG[$i]}"
 done
 echo "============================"
+echo ""
+echo "📋 Full run log saved to: ${RUN_LOG}"
 
 # Start service
 sudo systemctl start "${ODOO_SERVICE}"
 
 echo "✅ Database '${DB_NAME}' initialized successfully."
+echo "📋 Full run log saved to: ${RUN_LOG}"

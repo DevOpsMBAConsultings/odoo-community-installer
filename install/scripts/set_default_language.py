@@ -65,10 +65,15 @@ with cr_context as cr:
 
     if not lang:
         # Language not loaded yet — try to activate it
+        # Odoo 18 NOTE: --load-language at both base init AND module install
+        # is the reliable way. This block is a belt-and-suspenders fallback.
         try:
             # Odoo 18/19: _activate_lang or load_lang
             if hasattr(Lang, "_activate_lang"):
                 Lang._activate_lang(LANG_CODE)
+            elif hasattr(Lang, "load_lang"):
+                # Odoo 16/17 method name
+                Lang.load_lang(LANG_CODE)
             else:
                 # Fallback: search inactive then write active=True
                 lang_inactive = Lang.with_context(active_test=False).search(
