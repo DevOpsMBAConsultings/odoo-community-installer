@@ -204,6 +204,8 @@ if [[ "${INIT_OK}" == "1" ]]; then
   # Install any missing modules (standard + custom) so first login has apps already installed
   if [[ -n "${INIT_MODULES}" ]]; then
     echo "Installing any missing modules: ${INIT_MODULES}..."
+    echo "This may take several minutes. You can monitor the live log in another terminal with:"
+    echo "  tail -f /var/log/odoo/odoo${ODOO_VERSION}.log"
     install_log="/tmp/odoo_install_update.log"
     set +e
     sudo -u "${ODOO_USER}" "${ODOO_PY}" "${ODOO_BIN}" \
@@ -277,6 +279,8 @@ fi
 # INIT BASE — installs base + loads language pack into res.lang
 base_log="/tmp/odoo_base_install.log"
 echo "[Init Base DB] Running: ${WITHOUT_DEMO_FLAG} --load-language=${LANG_CODE}"
+echo "This may take a minute. You can monitor the live log in another terminal with:"
+echo "  tail -f /var/log/odoo/odoo${ODOO_VERSION}.log"
 set +e
 sudo -u "${ODOO_USER}" "${ODOO_PY}" "${ODOO_BIN}" \
   -c "${ODOO_CONF}" \
@@ -309,6 +313,8 @@ run_config_script "${SET_COUNTRY_SCRIPT}" "Setting default country to ${COUNTRY_
 if [[ -n "${INIT_MODULES}" ]]; then
   echo "Installing modules: ${INIT_MODULES}..."
   echo "(RST/docstring warnings during load are usually harmless.)"
+  echo "This will take 3-5 minutes. You can monitor the live log in another terminal with:"
+  echo "  tail -f /var/log/odoo/odoo${ODOO_VERSION}.log"
   mod_log="/tmp/odoo_mod_install.log"
   set +e
   sudo -u "${ODOO_USER}" "${ODOO_PY}" "${ODOO_BIN}" \
