@@ -3,7 +3,7 @@ set -e
 
 ODOO_USER="odoo"
 ODOO_HOME="/opt/odoo"
-ODOO_DIR="/opt/odoo/odoo19"
+ODOO_DIR="/opt/odoo/odoo${ODOO_VERSION}"
 CUSTOM_ADDONS="/opt/odoo/custom-addons"
 OCA_REPO_DIR="/opt/odoo/oca"
 

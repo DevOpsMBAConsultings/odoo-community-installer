@@ -42,4 +42,41 @@ import werkzeug, lxml
 print("OK: core imports successful")
 EOF
 
-echo "✅ Python dependencies installed successfully."
+# -------------------------------------------------------------------
+# Dependencias adicionales según versión de Odoo
+# -------------------------------------------------------------------
+echo ""
+echo ">>> Instalando dependencias específicas para Odoo ${ODOO_VERSION}..."
+
+case "${ODOO_VERSION}" in
+  16)
+    # Odoo 16 tiene versiones fijas de varias librerías
+    echo "  → Odoo 16: instalando dependencias legacy..."
+    sudo -u odoo "${VENV_PY}" -m pip install \
+      "num2words==0.5.10" \
+      "freezegun" \
+      "Babel==2.9.1" \
+      "chardet==4.0.0" \
+      "decorator==4.4.2" \
+      "docopt==0.6.2" \
+      "pooch"
+    ;;
+  17)
+    # Odoo 17: dependencias intermedias
+    echo "  → Odoo 17: instalando dependencias específicas..."
+    sudo -u odoo "${VENV_PY}" -m pip install \
+      "num2words" \
+      "freezegun" \
+      "pooch"
+    ;;
+  18|19)
+    # Odoo 18/19: dependencias modernas
+    echo "  → Odoo ${ODOO_VERSION}: instalando dependencias modernas..."
+    sudo -u odoo "${VENV_PY}" -m pip install \
+      "num2words" \
+      "freezegun"
+    ;;
+esac
+
+echo "✅ Python dependencies installed successfully for Odoo ${ODOO_VERSION}."
+

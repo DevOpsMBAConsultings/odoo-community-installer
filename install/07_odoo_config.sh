@@ -6,7 +6,7 @@ echo "Configuring Odoo ${ODOO_VERSION}..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-ODOO_CONF_TEMPLATE="${REPO_ROOT}/config/odoo19.conf.template"
+ODOO_CONF_TEMPLATE="${REPO_ROOT}/config/odoo.conf.template"
 ODOO_CONF_OUT="/etc/odoo${ODOO_VERSION}.conf"
 
 if [[ ! -f "${ODOO_CONF_TEMPLATE}" ]]; then

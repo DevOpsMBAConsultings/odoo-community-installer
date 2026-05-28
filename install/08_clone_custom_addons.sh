@@ -3,7 +3,7 @@ set -e
 
 ODOO_USER="odoo"
 TARGET_DIR="/opt/odoo/custom-addons"
-ODOO_VERSION="${ODOO_VERSION:-19.0}" # Service name suffix (e.g. odoo19)
+ODOO_VERSION="${ODOO_VERSION:?ERROR: ODOO_VERSION is not set. Run via install.sh}" # e.g. 18, 19, 20
 # If ODOO_VERSION is just "19", we might need "19.0" for the branch.
 if [[ "$ODOO_VERSION" =~ ^[0-9]+$ ]]; then
   TARGET_BRANCH="${ODOO_VERSION}.0"

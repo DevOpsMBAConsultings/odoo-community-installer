@@ -1,17 +1,19 @@
-# MBA – Odoo Community Install Process
+# MBA – Odoo Community Installer
 
-Proceso de instalación estandarizado y repetible para **Odoo Community** (versiones 18 y 19) en **Ubuntu 24.04**.
+Proceso de instalación estandarizado y repetible para **Odoo Community** (versiones 16, 17, 18 y 19) en **Ubuntu 22.04 / 24.04**.
 
 ## 🎯 Objetivo
 - Instalar Odoo Community de forma limpia y controlada
-- Soporte multi-versión: Odoo 18 (producción estable) y Odoo 19
+- **Soporte multi-versión**: Odoo 16 (LTS), 17, 18 (producción estable) y 19
 - Reutilizable en Oracle Cloud, servidores locales y entornos de clientes
 - Reducir el tiempo de instalación y evitar configuraciones manuales inconsistentes
 
 ## ✅ Qué incluye
 
 - Flujo de instalación determinista con scripts numerados bajo `/install`
-- Python venv + instalación de dependencias compatible con Ubuntu 24.04 (PEP 668 safe)
+- **Menú interactivo de selección de versión** (Odoo 16, 17, 18, 19)
+- **Selección automática de Python** según versión (Python 3.10 para Odoo 16/17, Python 3.12 para Odoo 18/19)
+- Python venv + instalación de dependencias compatible con Ubuntu 22.04 y 24.04 (PEP 668 safe)
 - Configuración de Odoo generada desde plantillas
 - Creación y habilitación del servicio systemd
 - **Selección automática de módulos OCA según la versión de Odoo elegida**
@@ -23,11 +25,22 @@ Proceso de instalación estandarizado y repetible para **Odoo Community** (versi
 
 ---
 
+## 🐍 Versiones de Python requeridas por versión de Odoo
+
+| Versión Odoo | Python requerido | Ubuntu recomendado | Notas |
+|---|---|---|---|
+| **16** | Python 3.10 | 22.04 ó 24.04* | *En Ubuntu 24.04 se instala Python 3.10 vía deadsnakes PPA automáticamente |
+| **17** | Python 3.10 | 22.04 ó 24.04* | Mismo que Odoo 16 |
+| **18** | Python 3.12 | 24.04 | Producción estable MBA Consultings |
+| **19** | Python 3.12 | 24.04 | Beta — verificar madurez de OCA |
+
+---
+
 ## 📁 Estructura de directorios en el servidor
 
 ```
 /opt/odoo/
-├── odoo{VERSION}/          # Código fuente core de Odoo (e.g. odoo18)
+├── odoo{VERSION}/          # Código fuente core de Odoo (e.g. odoo16, odoo18)
 │   └── venv/               # Entorno virtual de Python
 ├── auto-addons/            # Symlinks a módulos individuales (generado automáticamente)
 ├── custom-addons/          # Tus desarrollos propios y módulos privados
@@ -66,29 +79,14 @@ El instalador detecta qué versión de Odoo seleccionaste y te ofrece instalar a
    - Agrega cada ruta al `addons_path` en `/etc/odoo{VERSION}.conf`
    - Instala las dependencias Python (`requirements.txt`) de cada repo
 
-### Repositorios OCA incluidos (Odoo 18)
+### Versiones OCA incluidas en `oca_repos.conf`
 
-> Fuente de verdad: `docs/install_considerations_odoo18.md`
-
-| Repositorio | Reemplaza en Enterprise |
-|---|---|
-| `account-financial-reporting` | Reportes financieros avanzados |
-| `account-financial-tools` | Dashboard contable, activos fijos, ITBMS |
-| `account-reconcile` | Widget de conciliación bancaria |
-| `reporting-engine` | Exportación nativa a Excel (`report_xlsx`) |
-| `web` | Herramientas web adicionales |
-| `server-tools` | Herramientas técnicas de servidor |
-| `server-ux` | `date_range`, `base_tier_validation`, UX mejorada |
-| `server-brand` | Elimina banners Enterprise del backend |
-| `mis-builder` | P&L y Balances dinámicos con fórmulas contables |
-| `contract` | Suscripciones y contratos recurrentes |
-| `helpdesk` | Mesa de soporte con SLA |
-| `dms` | Gestión documental (DMS) |
-| `sign` | Firma electrónica simple |
-| `stock-logistics-barcode` | App de código de barras para inventario |
-| `manufacture` | PLM y Control de Calidad |
-| `purchase-workflow` | `purchase_tier_validation` |
-| `sale-workflow` | `sale_tier_validation` |
+| Versión | Estado | Repos incluidos |
+|---|---|---|
+| **Odoo 16** | LTS — clientes legacy | 14 repos (sin `server-brand`, `dms`, `knowledge`, `sign`) |
+| **Odoo 17** | Estable | 17 repos |
+| **Odoo 18** | Producción activa MBA | 21 repos |
+| **Odoo 19** | Beta | 21 repos (verificar disponibilidad) |
 
 Para modificar la lista o agregar soporte a otra versión, edita [`config/oca_repos.conf`](config/oca_repos.conf).
 
@@ -111,7 +109,7 @@ Los repos en `custom_addons.txt` se clonan en `/opt/odoo/custom-addons/`.
 
 ---
 
-# ✅ Métodos de Instalación (Ubuntu 24.04)
+# ✅ Métodos de Instalación (Ubuntu 22.04 / 24.04)
 
 ---
 
@@ -122,8 +120,8 @@ Los repos en `custom_addons.txt` se clonan en `/opt/odoo/custom-addons/`.
 2. **Clona el repositorio:**
     ```bash
     sudo apt update -y && sudo apt install -y git
-    git clone https://github.com/DevOpsMBAConsultings/MBA-Odoo19-Community-install-process.git
-    cd MBA-Odoo19-Community-install-process
+    git clone https://github.com/DevOpsMBAConsultings/odoo-community-installer.git
+    cd odoo-community-installer
     ```
 
 3. **Configura tus módulos propios (opcional):**
@@ -137,8 +135,19 @@ Los repos en `custom_addons.txt` se clonan en `/opt/odoo/custom-addons/`.
     sudo ./install.sh
     ```
 
-   El script te preguntará:
-   - Versión de Odoo (por defecto: **18**)
+   El script te mostrará un menú para seleccionar la versión:
+   ```
+   ┌─────────────────────────────────────────┐
+   │       Versión de Odoo a instalar        │
+   ├─────────────────────────────────────────┤
+   │  1) Odoo 19  (beta — verificar OCA)     │
+   │  2) Odoo 18  (recomendado — producción) │
+   │  3) Odoo 17                             │
+   │  4) Odoo 16  (LTS — clientes legacy)    │
+   └─────────────────────────────────────────┘
+   ```
+
+   Luego pedirá:
    - Dominio, email Let's Encrypt, token GitHub (opcional)
    - SSL storage remoto (S3/R2 o URL, opcional)
    - Módulos estándar a instalar
@@ -152,10 +161,11 @@ Los repos en `custom_addons.txt` se clonan en `/opt/odoo/custom-addons/`.
 
 2. **Copia el proyecto al servidor:**
     ```bash
-    scp -r MBA-Odoo19-Community-install-process USUARIO@IP_DEL_SERVIDOR:~/
+    scp -r odoo-community-installer USUARIO@IP_DEL_SERVIDOR:~/
     ```
 
 3. **Ejecuta el instalador:**
     ```bash
-    ssh USUARIO@IP_DEL_SERVIDOR "cd MBA-Odoo19-Community-install-process && chmod +x install.sh install/*.sh post/*.sh && sudo ./install.sh"
+    ssh USUARIO@IP_DEL_SERVIDOR "cd odoo-community-installer && chmod +x install.sh install/*.sh post/*.sh && sudo ./install.sh"
     ```
+

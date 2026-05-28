@@ -25,6 +25,22 @@ server {
     proxy_buffers 16 64k;
     proxy_buffer_size 128k;
 
+    # ── Protección DB Manager ─────────────────────────────────────────────────
+    # Bloquea acceso externo al gestor de bases de datos de Odoo.
+    # Solo permite acceso desde el propio servidor (localhost).
+    location ~ ^/web/database/(manager|selector|create|duplicate|drop|backup|restore) {
+        allow 127.0.0.1;       # Permite el acceso al propio servidor local (para la OCA)
+        allow ::1;             # Permite IPv6 local
+        deny all;              # Bloquea al resto del mundo entero
+
+        proxy_pass http://127.0.0.1:{{ODOO_PORT}};
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+    # ─────────────────────────────────────────────────────────────────────────
+
     location / {
         proxy_pass http://127.0.0.1:{{ODOO_PORT}};
         proxy_redirect off;

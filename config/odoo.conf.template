@@ -8,7 +8,7 @@ db_password = False
 db_name = {{DB_NAME}}
 
 dbfilter = ^{{DB_NAME}}$
-list_db = False
+list_db = True
 
 addons_path = /opt/odoo/auto-addons,/opt/odoo/odoo{{ODOO_VERSION}}/odoo/addons{{OCA_ADDON_PATHS}},/opt/odoo/custom-addons
 

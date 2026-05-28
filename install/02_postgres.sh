@@ -2,7 +2,7 @@
 set -e
 
 DB_USER="odoo"
-DB_NAME="${DB_NAME:-odoo19}"
+DB_NAME="${DB_NAME:-odoo${ODOO_VERSION}}"
 
 echo "Installing PostgreSQL..."
 apt update -y

@@ -8,7 +8,7 @@ REPO_ROOT="${SCRIPT_DIR}"
 cd "${REPO_ROOT}"
 
 echo "============================================================"
-echo " MBA - Odoo Community Install (v2)"
+echo " MBA - Odoo Community Installer"
 echo " Repo: ${REPO_ROOT}"
 echo "============================================================"
 
@@ -83,8 +83,25 @@ run_step() {
 DEFAULT_ODOO_VERSION="18"
 ALLOW_ODOO_PORT="${ALLOW_ODOO_PORT:-0}"
 
-read -r -p "Odoo version to install [${DEFAULT_ODOO_VERSION}]: " ODOO_VERSION
-ODOO_VERSION="${ODOO_VERSION:-$DEFAULT_ODOO_VERSION}"
+echo ""
+echo "  ┌─────────────────────────────────────────┐"
+echo "  │       Versión de Odoo a instalar        │"
+echo "  ├─────────────────────────────────────────┤"
+echo "  │  1) Odoo 19  (beta — verificar OCA)     │"
+echo "  │  2) Odoo 18  (recomendado — producción) │"
+echo "  │  3) Odoo 17                             │"
+echo "  │  4) Odoo 16  (LTS — clientes legacy)    │"
+echo "  └─────────────────────────────────────────┘"
+echo ""
+read -r -p "  Selecciona opción [2]: " _ODOO_CHOICE
+case "${_ODOO_CHOICE:-2}" in
+  1) ODOO_VERSION="19" ;;
+  2) ODOO_VERSION="18" ;;
+  3) ODOO_VERSION="17" ;;
+  4) ODOO_VERSION="16" ;;
+  *) echo "⚠️  Opción inválida. Usando Odoo 18 por defecto."; ODOO_VERSION="18" ;;
+esac
+echo "✅ Versión seleccionada: Odoo ${ODOO_VERSION}"
 
 while [[ -z "${DOMAIN:-}" ]]; do
   read -r -p "Domain name (e.g. erp.example.com): " DOMAIN
