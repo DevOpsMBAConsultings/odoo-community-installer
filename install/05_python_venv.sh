@@ -117,6 +117,22 @@ if [[ ! -f "${ODOO_SRC}/requirements.txt" ]]; then
 fi
 
 echo "Instalando dependencias Python de Odoo ${ODOO_VERSION}..."
+
+# ------------------------------------------------------------------
+# Odoo 16: gevent==21.8.0 falla al compilar con Cython>=3.x porque
+# el tipo 'long' fue eliminado. Solución: fijar Cython<3 y pre-instalar
+# una versión de gevent compatible antes de leer requirements.txt.
+# Esto no afecta a Odoo 18/19, que usan gevent>=22 ya compatible.
+# ------------------------------------------------------------------
+if [[ "${ODOO_VERSION}" == "16" ]]; then
+  echo "  ⚙️  Odoo 16: aplicando workaround para gevent (Cython<3)..."
+  sudo -u "${ODOO_USER}" "${VENV_DIR}/bin/pip" install "Cython<3" setuptools
+  sudo -u "${ODOO_USER}" "${VENV_DIR}/bin/pip" install \
+    --no-build-isolation \
+    "gevent==21.8.0"
+  echo "  ✅ gevent instalado correctamente con Cython<3"
+fi
+
 sudo -u "${ODOO_USER}" "${VENV_DIR}/bin/pip" install -r "${ODOO_SRC}/requirements.txt"
 
 echo "Instalando dependencias extras para módulos propios..."

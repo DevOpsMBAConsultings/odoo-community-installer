@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """
-Create fiscal position "Retención de impuestos" (tax withholding).
+Create fiscal positions for tax withholding:
+- "Retención 50% de impuestos"
+- "Retención 100% de Impuestos"
 
-1. For each company: find or create account.fiscal.position with name "Retención de impuestos".
+1. For each company: find or create both account.fiscal.position.
 2. auto_apply is configurable via ODOO_FISCAL_POSITION_RETENCION_AUTO_APPLY (default 0 = False;
    set to 1 to enable Detectar de forma automática).
 
@@ -16,8 +18,12 @@ import sys
 
 ODOO_CONF = os.environ.get("ODOO_CONF")
 DB_NAME = os.environ.get("DB_NAME")
-FP_NAME = (os.environ.get("ODOO_FISCAL_POSITION_RETENCION_NAME") or "Retención de impuestos").strip()
 AUTO_APPLY = os.environ.get("ODOO_FISCAL_POSITION_RETENCION_AUTO_APPLY", "1").strip() in ("1", "true", "yes")
+
+FP_NAMES = [
+    "Retención 50% de impuestos",
+    "Retención 100% de Impuestos",
+]
 
 if not ODOO_CONF or not DB_NAME:
     print("ERROR: ODOO_CONF and DB_NAME must be set.", file=sys.stderr)
@@ -59,28 +65,38 @@ with cr_context as cr:
     companies = env["res.company"].search([])
 
     for company in companies:
-        fp = FiscalPosition.search(
-            [
-                ("company_id", "=", company.id),
-                ("name", "=", FP_NAME),
-            ],
-            limit=1,
-        )
-        if fp:
-            if fp.auto_apply != AUTO_APPLY:
-                fp.auto_apply = AUTO_APPLY
-                print(f"Updated '{FP_NAME}' auto_apply={AUTO_APPLY} in company {company.name}.")
-            else:
-                print(f"Fiscal position '{FP_NAME}' already exists in company {company.name}.")
-        else:
-            FiscalPosition.create(
-                {
-                    "name": FP_NAME,
-                    "company_id": company.id,
-                    "auto_apply": AUTO_APPLY,
-                }
+        for fp_name in FP_NAMES:
+            fp = FiscalPosition.search(
+                [
+                    ("company_id", "=", company.id),
+                    ("name", "=", fp_name),
+                ],
+                limit=1,
             )
-            print(f"Created fiscal position '{FP_NAME}' for company {company.name} (auto_apply={AUTO_APPLY}).")
+            if fp:
+                if fp.auto_apply != AUTO_APPLY:
+                    fp.auto_apply = AUTO_APPLY
+                    print(f"Updated '{fp_name}' auto_apply={AUTO_APPLY} in company {company.name}.")
+                else:
+                    print(f"Fiscal position '{fp_name}' already exists in company {company.name}.")
+            else:
+                FiscalPosition.create(
+                    {
+                        "name": fp_name,
+                        "company_id": company.id,
+                        "auto_apply": AUTO_APPLY,
+                    }
+                )
+                print(f"Created fiscal position '{fp_name}' for company {company.name} (auto_apply={AUTO_APPLY}).")
+
+        # Archive old 'Retención de impuestos' if it exists
+        old_fp = FiscalPosition.search([
+            ("company_id", "=", company.id),
+            ("name", "=", "Retención de impuestos"),
+        ], limit=1)
+        if old_fp and getattr(old_fp, "active", True):
+            old_fp.active = False
+            print(f"Archived old fiscal position 'Retención de impuestos' in company {company.name}.")
 
     cr.commit()
-    print("Done. Fiscal position 'Retención de impuestos' is available.")
+    print("Done. Fiscal positions for retención are available.")
