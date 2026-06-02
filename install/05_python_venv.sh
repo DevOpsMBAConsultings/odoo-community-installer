@@ -11,21 +11,76 @@ VENV_DIR="${ODOO_BASE}/venv"
 echo "Setting up Python virtual environment for Odoo ${ODOO_VERSION}..."
 
 # -------------------------------------------------------------------
-# Selección de intérprete Python según versión de Odoo
-#   Odoo 16 → Python 3.10  (requiere deadsnakes PPA en Ubuntu 24.04)
-#   Odoo 17 → Python 3.10  (recomendado; 3.11 también soportado)
-#   Odoo 18 → Python 3.12
-#   Odoo 19 → Python 3.12
+# Función auxiliar: compilar Python 3.10 desde fuente
+# Se usa como fallback cuando el PPA deadsnakes no tiene binarios
+# para la arquitectura actual (ej: arm64 en Ubuntu 24.04).
 # -------------------------------------------------------------------
+_install_python310_from_source() {
+  local PY_VERSION="3.10.14"
+  local PY_SRC="/tmp/Python-${PY_VERSION}"
+  local PY_TARBALL="/tmp/Python-${PY_VERSION}.tgz"
+
+  echo "  → Instalando dependencias de compilación..."
+  apt-get install -y \
+    build-essential libssl-dev zlib1g-dev \
+    libncurses5-dev libncursesw5-dev libreadline-dev \
+    libsqlite3-dev libgdbm-dev libdb5.3-dev libbz2-dev \
+    libexpat1-dev liblzma-dev libffi-dev uuid-dev
+
+  echo "  → Descargando Python ${PY_VERSION}..."
+  curl -fsSL "https://www.python.org/ftp/python/${PY_VERSION}/Python-${PY_VERSION}.tgz" \
+    -o "${PY_TARBALL}"
+
+  echo "  → Extrayendo y compilando (esto puede tardar varios minutos)..."
+  tar -xf "${PY_TARBALL}" -C /tmp
+  cd "${PY_SRC}"
+  ./configure --enable-optimizations --with-ensurepip=install \
+    --prefix=/usr/local --enable-shared \
+    LDFLAGS="-Wl,-rpath /usr/local/lib" \
+    2>&1 | tail -5
+  make -j"$(nproc)" 2>&1 | tail -5
+  make altinstall 2>&1 | tail -5
+
+  # make altinstall ya coloca el binario en /usr/local/bin/python3.10
+  echo "  → Verificando: $(/usr/local/bin/python3.10 --version)"
+
+  # Instalar venv y setuptools
+  python3.10 -m ensurepip --upgrade
+  python3.10 -m pip install --upgrade pip setuptools wheel
+
+  # Limpiar
+  rm -rf "${PY_SRC}" "${PY_TARBALL}"
+  echo "✅ Python 3.10 compilado e instalado desde fuente."
+}
+
+
 case "${ODOO_VERSION}" in
   16|17)
     PYTHON_BIN="python3.10"
     if ! command -v python3.10 &>/dev/null; then
-      echo "⚠️  Odoo ${ODOO_VERSION} requiere Python 3.10. Instalando desde deadsnakes PPA..."
+      echo "⚠️  Odoo ${ODOO_VERSION} requiere Python 3.10. Intentando instalar desde deadsnakes PPA..."
+
+      # Asegurarse de que software-properties-common está instalado
+      if ! command -v add-apt-repository &>/dev/null; then
+        echo "  → Instalando software-properties-common..."
+        apt-get install -y software-properties-common
+      fi
+
+      # Intentar añadir el PPA
       add-apt-repository -y ppa:deadsnakes/ppa
       apt-get update -y
-      apt-get install -y python3.10 python3.10-venv python3.10-dev python3.10-distutils
-      echo "✅ Python 3.10 instalado."
+
+      # Comprobar si el PPA ofrece python3.10 para esta arquitectura
+      ARCH=$(dpkg --print-architecture)
+      if apt-cache show python3.10 &>/dev/null; then
+        apt-get install -y python3.10 python3.10-venv python3.10-dev
+        # python3.10-distutils puede no existir en Ubuntu 24.04; ignorar si falla
+        apt-get install -y python3.10-distutils 2>/dev/null || true
+        echo "✅ Python 3.10 instalado desde PPA."
+      else
+        echo "⚠️  PPA no tiene python3.10 para la arquitectura ${ARCH}. Compilando Python 3.10 desde fuente..."
+        _install_python310_from_source
+      fi
     else
       echo "✅ Python 3.10 disponible: $(python3.10 --version)"
     fi

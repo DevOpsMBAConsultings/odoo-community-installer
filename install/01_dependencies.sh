@@ -8,8 +8,10 @@ apt update -y
 apt install -y \
   git \
   wget \
+  curl \
   unzip \
   openssl \
+  software-properties-common \
   python3 \
   python3-pip \
   python3-dev \
