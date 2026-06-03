@@ -1,14 +1,14 @@
 # Guía de Instalación Automatizada — MBA Consultings
 
-Guía rápida para instalar Odoo Community (18 o 19) usando el script automatizado, incluyendo módulos OCA y módulos propios como Digifact.
+Guía rápida para instalar **Odoo 16 Community** usando el script automatizado, incluyendo módulos OCA y módulos propios como Digifact.
 
-**Repositorio:** [MBA-Odoo19-Community-install-process](https://github.com/DevOpsMBAConsultings/MBA-Odoo19-Community-install-process/tree/v2)
+**Repositorio:** [odoo-community-installer](https://github.com/DevOpsMBAConsultings/odoo-community-installer.git)
 
 ---
 
 ## Prerequisitos
 
-- Servidor Ubuntu 24.04 limpio
+- Servidor Ubuntu 22.04 LTS (o Ubuntu 24.04 LTS) limpio
 - Acceso root o sudo
 - Nombre de dominio (para el certificado SSL)
 - Dirección de email (para Let's Encrypt)
@@ -20,8 +20,8 @@ Guía rápida para instalar Odoo Community (18 o 19) usando el script automatiza
 ```bash
 cd ~
 sudo apt update -y && sudo apt install -y git
-git clone https://github.com/DevOpsMBAConsultings/MBA-Odoo19-Community-install-process.git
-cd MBA-Odoo19-Community-install-process
+git clone -b 16.0 https://github.com/DevOpsMBAConsultings/odoo-community-installer.git odoo-community-installer-16
+cd odoo-community-installer-16
 ```
 
 ---
@@ -59,25 +59,24 @@ El script te hará estas preguntas en orden:
 
 | Pregunta | Por defecto | Notas |
 |---|---|---|
-| Odoo version to install | `18` | Enter para aceptar 18 (estable). Escribe `19` para la versión más reciente. |
 | Domain name | — | e.g. `erp.tuempresa.com` |
 | Email for Let's Encrypt | — | Para notificaciones de SSL |
 | GitHub Token | — | Opcional. Solo si tienes repos privados HTTPS en `custom_addons.txt` |
 | Use remote SSL storage? | `no` | `s3`, `url`, o `no` |
 | Odoo standard modules | `sale,purchase,crm,stock,contacts,account` | Enter para aceptar los por defecto |
-| **¿Instalar módulos OCA?** | `N` | Escribe **`s`** para instalar automáticamente los módulos OCA para tu versión |
+| **¿Instalar módulos OCA para Odoo 16?** | `N` | Escribe **`s`** para instalar automáticamente los módulos OCA para Odoo 16 |
 
 ### ¿Qué instala?
 
 - ✅ Todas las dependencias del sistema
 - ✅ PostgreSQL
-- ✅ Odoo Community (versión elegida)
+- ✅ Odoo Community 16
 - ✅ Python 3 con entorno virtual
 - ✅ wkhtmltopdf (versión parcheada para PDFs)
 - ✅ Nginx reverse proxy
 - ✅ Certificado SSL Let's Encrypt
 - ✅ Configuración de firewall (UFW)
-- ✅ Servicio systemd
+- ✅ Servicio systemd (`odoo16.service`)
 - ✅ **Módulos OCA en `/opt/odoo/oca/`** (si respondiste `s`)
 - ✅ Módulos propios de `custom_addons.txt` en `/opt/odoo/custom-addons/`
 
@@ -85,9 +84,9 @@ El script te hará estas preguntas en orden:
 
 - **URL de Odoo:** `https://tu-dominio.com`
 - **Master Password:** Se muestra al final (¡guárdala!)
-- **Base de datos:** `odoo18` (o `odoo19`)
-- **Config:** `/etc/odoo18.conf`
-- **Logs:** `/var/log/odoo/odoo18.log`
+- **Base de datos:** `odoo16`
+- **Config:** `/etc/odoo16.conf`
+- **Logs:** `/var/log/odoo/odoo16.log`
 
 ---
 
@@ -95,7 +94,7 @@ El script te hará estas preguntas en orden:
 
 ```
 /opt/odoo/
-├── odoo18/                         # Código fuente core de Odoo 18
+├── odoo16/                         # Código fuente core de Odoo 16
 │   └── venv/                       # Python virtual environment
 ├── auto-addons/                    # Symlinks a módulos detectados en custom-addons
 ├── custom-addons/                  # Tus módulos propios (de custom_addons.txt)
@@ -108,9 +107,9 @@ El script te hará estas preguntas en orden:
     └── ...
 ```
 
-**`addons_path` en `/etc/odoo18.conf` (con OCA):**
+**`addons_path` en `/etc/odoo16.conf` (con OCA):**
 ```ini
-addons_path = /opt/odoo/auto-addons,/opt/odoo/odoo18/odoo/addons,/opt/odoo/oca/account-financial-reporting,/opt/odoo/oca/account-financial-tools,...,/opt/odoo/custom-addons
+addons_path = /opt/odoo/auto-addons,/opt/odoo/odoo16/odoo/addons,/opt/odoo/oca/account-financial-reporting,/opt/odoo/oca/account-financial-tools,...,/opt/odoo/custom-addons
 ```
 
 ---
@@ -124,7 +123,7 @@ Los módulos OCA están **disponibles** en el servidor pero deben **activarse de
 3. Ve al menú **Apps (Aplicaciones)**
 4. Haz clic en **"Update Apps List"** (Actualizar lista de aplicaciones)
 5. Limpia el filtro de búsqueda por defecto
-6. Instala los módulos en el orden recomendado en [`docs/install_considerations_odoo18.md`](docs/install_considerations_odoo18.md):
+6. Instala los módulos en el orden recomendado:
 
 | Orden | Módulo | Repositorio OCA |
 |---|---|---|
@@ -133,7 +132,7 @@ Los módulos OCA están **disponibles** en el servidor pero deben **activarse de
 | 3 | `mis_builder` | `mis-builder` |
 | 4 | `account_usability` | `account-financial-tools` |
 | 5 | `account_reconciliation_widget` | `account-reconcile` |
-| 6 | `server_brand` | `server-brand` |
+| 6 | `server_brand` | `server-brand` (no en v16) |
 | 7 | `base_technical_features` | `server-ux` |
 | 8+ | Módulos adicionales según necesidad | Ver checklist en la doc |
 
@@ -175,19 +174,19 @@ Los módulos OCA están **disponibles** en el servidor pero deben **activarse de
 
 ```bash
 # Estado del servicio
-sudo systemctl status odoo18
+sudo systemctl status odoo16
 
 # Logs en tiempo real
-sudo tail -f /var/log/odoo/odoo18.log
+sudo tail -f /var/log/odoo/odoo16.log
 
 # Verificar addons_path (debe incluir rutas OCA si se instalaron)
-grep addons_path /etc/odoo18.conf
+grep addons_path /etc/odoo16.conf
 
 # Verificar que los repos OCA están clonados
 ls /opt/odoo/oca/
 
 # Verificar que no hay rutas fantasma (ninguna línea con "No such file")
-grep addons_path /etc/odoo18.conf | tr ',' '\n' | xargs -I{} ls -d {} 2>&1
+grep addons_path /etc/odoo16.conf | tr ',' '\n' | xargs -I{} ls -d {} 2>&1
 ```
 
 ---
@@ -197,35 +196,31 @@ grep addons_path /etc/odoo18.conf | tr ',' '\n' | xargs -I{} ls -d {} 2>&1
 ### Gestión del servicio
 
 ```bash
-sudo systemctl start odoo18
-sudo systemctl stop odoo18
-sudo systemctl restart odoo18
-sudo systemctl status odoo18
-sudo journalctl -u odoo18 -f
+sudo systemctl start odoo16
+sudo systemctl stop odoo16
+sudo systemctl restart odoo16
+sudo systemctl status odoo16
+sudo journalctl -u odoo16 -f
 ```
 
 ### Actualizar un módulo desde la terminal
 
 ```bash
-sudo -u odoo /opt/odoo/odoo18/venv/bin/python3 /opt/odoo/odoo18/odoo/odoo-bin \
-  -c /etc/odoo18.conf \
-  -d odoo18 \
-  -u nombre_del_modulo \
-  --stop-after-init
-sudo systemctl start odoo18
+sudo -u odoo /opt/odoo/odoo16/venv/bin/python3 /opt/odoo/odoo16/odoo/odoo-bin   -c /etc/odoo16.conf   -d odoo16   -u nombre_del_modulo   --stop-after-init
+sudo systemctl start odoo16
 ```
 
 ### Actualizar repos OCA a la última versión de la rama
 
 ```bash
 sudo -u odoo git -C /opt/odoo/oca/account-financial-reporting pull
-sudo systemctl restart odoo18
+sudo systemctl restart odoo16
 ```
 
 ### Health check
 
 ```bash
-cd /path/to/MBA-Odoo19-Community-install-process
+cd /path/to/odoo-community-installer-16
 sudo ./post/00_health_check.sh
 ```
 
@@ -237,13 +232,13 @@ sudo ./post/00_health_check.sh
 
 ```bash
 # Verificar que el path está en addons_path
-grep addons_path /etc/odoo18.conf
+grep addons_path /etc/odoo16.conf
 
 # Verificar que el directorio existe físicamente
 ls /opt/odoo/oca/<nombre-repo>
 
 # Reiniciar Odoo y actualizar lista de apps
-sudo systemctl restart odoo18
+sudo systemctl restart odoo16
 # Luego en UI: Apps → Update Apps List
 ```
 
@@ -256,10 +251,10 @@ sudo systemctl restart odoo18
 
 ```bash
 sudo su - odoo
-source /opt/odoo/odoo18/venv/bin/activate
+source /opt/odoo/odoo16/venv/bin/activate
 pip install nombre_del_paquete
 exit
-sudo systemctl restart odoo18
+sudo systemctl restart odoo16
 ```
 
 ### Problemas de conexión con Digifact
@@ -284,6 +279,5 @@ sudo ufw status
 ## Documentación relacionada
 
 - **Checklist completo:** [`INSTALL_CHECKLIST.md`](INSTALL_CHECKLIST.md)
-- **Consideraciones OCA para Odoo 18:** [`docs/install_considerations_odoo18.md`](docs/install_considerations_odoo18.md)
 - **Equivalencias Enterprise vs OCA:** [`docs/oca_modules.md`](docs/oca_modules.md)
 - **Repos OCA por versión:** [`config/oca_repos.conf`](config/oca_repos.conf)
