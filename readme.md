@@ -1,38 +1,32 @@
-# MBA – Odoo Community Installer
+# MBA – Odoo 18 Community Installer
 
-Proceso de instalación estandarizado y repetible para **Odoo Community** (versiones 16, 17, 18 y 19) en **Ubuntu 22.04 / 24.04**.
+Proceso de instalación estandarizado y repetible para **Odoo 18 Community** en **Ubuntu 24.04** (versión recomendada).
 
 ## 🎯 Objetivo
-- Instalar Odoo Community de forma limpia y controlada
-- **Soporte multi-versión**: Odoo 16 (LTS), 17, 18 (producción estable) y 19
-- Reutilizable en Oracle Cloud, servidores locales y entornos de clientes
-- Reducir el tiempo de instalación y evitar configuraciones manuales inconsistentes
+- Instalar Odoo 18 Community de forma limpia, controlada y automatizada.
+- Reutilizable en Oracle Cloud, servidores locales y entornos de clientes.
+- Reducir el tiempo de instalación y evitar configuraciones manuales inconsistentes.
 
 ## ✅ Qué incluye
-
-- Flujo de instalación determinista con scripts numerados bajo `/install`
-- **Menú interactivo de selección de versión** (Odoo 16, 17, 18, 19)
-- **Selección automática de Python** según versión (Python 3.10 para Odoo 16/17, Python 3.12 para Odoo 18/19)
-- Python venv + instalación de dependencias compatible con Ubuntu 22.04 y 24.04 (PEP 668 safe)
-- Configuración de Odoo generada desde plantillas
-- Creación y habilitación del servicio systemd
-- **Selección automática de módulos OCA según la versión de Odoo elegida**
-- Clonación de repos OCA en `/opt/odoo/oca/` con `addons_path` actualizado automáticamente
-- Soporte para módulos propios/privados vía `custom_addons.txt`
-- Acceso de demo opcional: abre el puerto **8069** solo si `ALLOW_ODOO_PORT=1`
-- Nginx reverse proxy + SSL Let's Encrypt
-- Health check post-instalación + resumen
+- Flujo de instalación determinista con scripts numerados bajo `/install`.
+- **Entorno aislado exclusivo para Odoo 18**: usando Python 3.12 y un entorno virtual (`venv`) PEP 668 safe.
+- Configuración de Odoo generada desde plantillas.
+- Creación y habilitación del servicio systemd (`odoo18.service`).
+- **Instalación automática de módulos OCA para Odoo 18**:
+  - Lee los repositorios OCA compatibles en `config/oca_repos.conf`.
+  - Clona cada repo en `/opt/odoo/oca/` (rama `18.0`).
+  - Agrega automáticamente cada ruta al `addons_path` en `/etc/odoo18.conf`.
+- Soporte para módulos propios/privados vía `custom_addons.txt` en `/opt/odoo/custom-addons/`.
+- Acceso de demo opcional: abre el puerto **8069** solo si `ALLOW_ODOO_PORT=1`.
+- Nginx reverse proxy + SSL Let's Encrypt.
+- Health check post-instalación + resumen.
 
 ---
 
-## 🐍 Versiones de Python requeridas por versión de Odoo
+## 🐍 Requisitos de Sistema
 
-| Versión Odoo | Python requerido | Ubuntu recomendado | Notas |
-|---|---|---|---|
-| **16** | Python 3.10 | 22.04 ó 24.04* | *En Ubuntu 24.04 se instala Python 3.10 vía deadsnakes PPA automáticamente |
-| **17** | Python 3.10 | 22.04 ó 24.04* | Mismo que Odoo 16 |
-| **18** | Python 3.12 | 24.04 | Producción estable MBA Consultings |
-| **19** | Python 3.12 | 24.04 | Beta — verificar madurez de OCA |
+- **Sistema Operativo**: Ubuntu 24.04 LTS (o Ubuntu 22.04 LTS)
+- **Python**: Python 3.12 (instalado por defecto en Ubuntu 24.04)
 
 ---
 
@@ -40,11 +34,11 @@ Proceso de instalación estandarizado y repetible para **Odoo Community** (versi
 
 ```
 /opt/odoo/
-├── odoo{VERSION}/          # Código fuente core de Odoo (e.g. odoo16, odoo18)
-│   └── venv/               # Entorno virtual de Python
+├── odoo18/                 # Código fuente core de Odoo 18
+│   └── venv/               # Entorno virtual de Python 3.12
 ├── auto-addons/            # Symlinks a módulos individuales (generado automáticamente)
 ├── custom-addons/          # Tus desarrollos propios y módulos privados
-└── oca/                    # Repositorios oficiales de la OCA (rama {VERSION}.0)
+└── oca/                    # Repositorios oficiales de la OCA (rama 18.0)
     ├── account-financial-reporting/
     ├── account-financial-tools/
     └── ...
@@ -65,36 +59,21 @@ Al inicializar la base de datos (`09_init_database.sh`) se pueden usar estas var
 
 ---
 
-## 📦 Módulos OCA — Selección automática por versión
+## 📦 Módulos OCA para Odoo 18
 
-El instalador detecta qué versión de Odoo seleccionaste y te ofrece instalar automáticamente los módulos OCA correspondientes.
+El instalador detecta los módulos OCA configurados para Odoo 18 en `config/oca_repos.conf` y te ofrece instalarlos automáticamente.
 
-### ¿Cómo funciona?
+1. Clona cada repo configurado en `/opt/odoo/oca/<repo-name>/` (rama `18.0`).
+2. Agrega cada ruta al `addons_path` en `/etc/odoo18.conf`.
+3. Instala las dependencias Python (`requirements.txt`) correspondientes de cada repositorio.
 
-1. `install.sh` lee `config/oca_repos.conf`
-2. Muestra los repos OCA configurados para tu versión
-3. Pregunta si deseas instalarlos
-4. Si confirmas:
-   - Clona cada repo en `/opt/odoo/oca/<repo-name>/` (rama `{VERSION}.0`)
-   - Agrega cada ruta al `addons_path` en `/etc/odoo{VERSION}.conf`
-   - Instala las dependencias Python (`requirements.txt`) de cada repo
-
-### Versiones OCA incluidas en `oca_repos.conf`
-
-| Versión | Estado | Repos incluidos |
-|---|---|---|
-| **Odoo 16** | LTS — clientes legacy | 14 repos (sin `server-brand`, `dms`, `knowledge`, `sign`) |
-| **Odoo 17** | Estable | 17 repos |
-| **Odoo 18** | Producción activa MBA | 21 repos |
-| **Odoo 19** | Beta | 21 repos (verificar disponibilidad) |
-
-Para modificar la lista o agregar soporte a otra versión, edita [`config/oca_repos.conf`](config/oca_repos.conf).
+Para modificar la lista de repositorios, edita [`config/oca_repos.conf`](config/oca_repos.conf).
 
 ---
 
 ## 🗂 Gestión de módulos propios (`custom_addons.txt`)
 
-El archivo `custom_addons.txt` es para tus **repositorios propios o privados** (no OCA). Los módulos OCA los gestiona el instalador automáticamente.
+El archivo `custom_addons.txt` es para tus **repositorios propios o privados** (no OCA).
 
 - **Repositorios Públicos:**
   ```
@@ -109,19 +88,19 @@ Los repos en `custom_addons.txt` se clonan en `/opt/odoo/custom-addons/`.
 
 ---
 
-# ✅ Métodos de Instalación (Ubuntu 22.04 / 24.04)
+# ✅ Métodos de Instalación
 
 ---
 
-### Flujo A: Clonar directamente en el Servidor (Recomendado para Producción)
+### Flujo de Instalación en el Servidor (Recomendado)
 
 1. **Conéctate al servidor por SSH.**
 
-2. **Clona el repositorio:**
+2. **Clona el repositorio e ingresa a él:**
     ```bash
     sudo apt update -y && sudo apt install -y git
-    git clone https://github.com/DevOpsMBAConsultings/odoo-community-installer.git
-    cd odoo-community-installer
+    git clone -b 18.0 https://github.com/DevOpsMBAConsultings/odoo-community-installer.git odoo-community-installer-18
+    cd odoo-community-installer-18
     ```
 
 3. **Configura tus módulos propios (opcional):**
@@ -135,37 +114,8 @@ Los repos en `custom_addons.txt` se clonan en `/opt/odoo/custom-addons/`.
     sudo ./install.sh
     ```
 
-   El script te mostrará un menú para seleccionar la versión:
-   ```
-   ┌─────────────────────────────────────────┐
-   │       Versión de Odoo a instalar        │
-   ├─────────────────────────────────────────┤
-   │  1) Odoo 19  (beta — verificar OCA)     │
-   │  2) Odoo 18  (recomendado — producción) │
-   │  3) Odoo 17                             │
-   │  4) Odoo 16  (LTS — clientes legacy)    │
-   └─────────────────────────────────────────┘
-   ```
-
-   Luego pedirá:
-   - Dominio, email Let's Encrypt, token GitHub (opcional)
-   - SSL storage remoto (S3/R2 o URL, opcional)
-   - Módulos estándar a instalar
-   - **¿Instalar módulos OCA? (s/N)**
-
----
-
-### Flujo B: Desarrollo Local y Copia al Servidor
-
-1. **Edita `custom_addons.txt`** con tus repos.
-
-2. **Copia el proyecto al servidor:**
-    ```bash
-    scp -r odoo-community-installer USUARIO@IP_DEL_SERVIDOR:~/
-    ```
-
-3. **Ejecuta el instalador:**
-    ```bash
-    ssh USUARIO@IP_DEL_SERVIDOR "cd odoo-community-installer && chmod +x install.sh install/*.sh post/*.sh && sudo ./install.sh"
-    ```
-
+   El script se ejecutará **exclusivamente para Odoo 18** y te pedirá:
+   - Dominio, email Let's Encrypt, token GitHub (opcional).
+   - SSL storage remoto (S3/R2 o URL, opcional).
+   - Módulos estándar a instalar.
+   - **¿Instalar módulos OCA para Odoo 18? (s/N)**.
