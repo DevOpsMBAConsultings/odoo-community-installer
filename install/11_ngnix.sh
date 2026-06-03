@@ -204,7 +204,7 @@ sleep 5
 # Request cert with Certbot; on success, save copy to store
 # ------------------------------------------------------------
 CERTBOT_OK=0
-if curl -fsS --connect-timeout 5 "http://${DOMAIN}" >/dev/null; then
+if curl -sS --connect-timeout 5 "http://${DOMAIN}" >/dev/null; then
   echo "Domain reachable over HTTP. Proceeding with Certbot..."
 
   if certbot --nginx \
