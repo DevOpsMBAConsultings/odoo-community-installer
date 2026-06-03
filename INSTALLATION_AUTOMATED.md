@@ -1,14 +1,14 @@
 # Guía de Instalación Automatizada — MBA Consultings
 
-Guía rápida para instalar Odoo Community (18 o 19) usando el script automatizado, incluyendo módulos OCA y módulos propios como Digifact.
+Guía rápida para instalar **Odoo 18 Community** usando el script automatizado, incluyendo módulos OCA y módulos propios como Digifact.
 
-**Repositorio:** [MBA-Odoo19-Community-install-process](https://github.com/DevOpsMBAConsultings/MBA-Odoo19-Community-install-process/tree/v2)
+**Repositorio:** [odoo-community-installer](https://github.com/DevOpsMBAConsultings/odoo-community-installer.git)
 
 ---
 
 ## Prerequisitos
 
-- Servidor Ubuntu 24.04 limpio
+- Servidor Ubuntu 24.04 LTS (o Ubuntu 22.04 LTS) limpio
 - Acceso root o sudo
 - Nombre de dominio (para el certificado SSL)
 - Dirección de email (para Let's Encrypt)
@@ -20,8 +20,8 @@ Guía rápida para instalar Odoo Community (18 o 19) usando el script automatiza
 ```bash
 cd ~
 sudo apt update -y && sudo apt install -y git
-git clone https://github.com/DevOpsMBAConsultings/MBA-Odoo19-Community-install-process.git
-cd MBA-Odoo19-Community-install-process
+git clone -b 18.0 https://github.com/DevOpsMBAConsultings/odoo-community-installer.git odoo-community-installer-18
+cd odoo-community-installer-18
 ```
 
 ---
@@ -59,25 +59,24 @@ El script te hará estas preguntas en orden:
 
 | Pregunta | Por defecto | Notas |
 |---|---|---|
-| Odoo version to install | `18` | Enter para aceptar 18 (estable). Escribe `19` para la versión más reciente. |
 | Domain name | — | e.g. `erp.tuempresa.com` |
 | Email for Let's Encrypt | — | Para notificaciones de SSL |
 | GitHub Token | — | Opcional. Solo si tienes repos privados HTTPS en `custom_addons.txt` |
 | Use remote SSL storage? | `no` | `s3`, `url`, o `no` |
 | Odoo standard modules | `sale,purchase,crm,stock,contacts,account` | Enter para aceptar los por defecto |
-| **¿Instalar módulos OCA?** | `N` | Escribe **`s`** para instalar automáticamente los módulos OCA para tu versión |
+| **¿Instalar módulos OCA para Odoo 18?** | `N` | Escribe **`s`** para instalar automáticamente los módulos OCA para Odoo 18 |
 
 ### ¿Qué instala?
 
 - ✅ Todas las dependencias del sistema
 - ✅ PostgreSQL
-- ✅ Odoo Community (versión elegida)
+- ✅ Odoo Community 18
 - ✅ Python 3 con entorno virtual
 - ✅ wkhtmltopdf (versión parcheada para PDFs)
 - ✅ Nginx reverse proxy
 - ✅ Certificado SSL Let's Encrypt
 - ✅ Configuración de firewall (UFW)
-- ✅ Servicio systemd
+- ✅ Servicio systemd (`odoo18.service`)
 - ✅ **Módulos OCA en `/opt/odoo/oca/`** (si respondiste `s`)
 - ✅ Módulos propios de `custom_addons.txt` en `/opt/odoo/custom-addons/`
 
@@ -85,7 +84,7 @@ El script te hará estas preguntas en orden:
 
 - **URL de Odoo:** `https://tu-dominio.com`
 - **Master Password:** Se muestra al final (¡guárdala!)
-- **Base de datos:** `odoo18` (o `odoo19`)
+- **Base de datos:** `odoo18`
 - **Config:** `/etc/odoo18.conf`
 - **Logs:** `/var/log/odoo/odoo18.log`
 
@@ -124,7 +123,7 @@ Los módulos OCA están **disponibles** en el servidor pero deben **activarse de
 3. Ve al menú **Apps (Aplicaciones)**
 4. Haz clic en **"Update Apps List"** (Actualizar lista de aplicaciones)
 5. Limpia el filtro de búsqueda por defecto
-6. Instala los módulos en el orden recomendado en [`docs/install_considerations_odoo18.md`](docs/install_considerations_odoo18.md):
+6. Instala los módulos en el orden recomendado:
 
 | Orden | Módulo | Repositorio OCA |
 |---|---|---|
@@ -133,7 +132,7 @@ Los módulos OCA están **disponibles** en el servidor pero deben **activarse de
 | 3 | `mis_builder` | `mis-builder` |
 | 4 | `account_usability` | `account-financial-tools` |
 | 5 | `account_reconciliation_widget` | `account-reconcile` |
-| 6 | `server_brand` | `server-brand` |
+| 6 | `server_brand` | `server-brand` (no en v16) |
 | 7 | `base_technical_features` | `server-ux` |
 | 8+ | Módulos adicionales según necesidad | Ver checklist en la doc |
 
@@ -207,11 +206,7 @@ sudo journalctl -u odoo18 -f
 ### Actualizar un módulo desde la terminal
 
 ```bash
-sudo -u odoo /opt/odoo/odoo18/venv/bin/python3 /opt/odoo/odoo18/odoo/odoo-bin \
-  -c /etc/odoo18.conf \
-  -d odoo18 \
-  -u nombre_del_modulo \
-  --stop-after-init
+sudo -u odoo /opt/odoo/odoo18/venv/bin/python3 /opt/odoo/odoo18/odoo/odoo-bin   -c /etc/odoo18.conf   -d odoo18   -u nombre_del_modulo   --stop-after-init
 sudo systemctl start odoo18
 ```
 
@@ -225,7 +220,7 @@ sudo systemctl restart odoo18
 ### Health check
 
 ```bash
-cd /path/to/MBA-Odoo19-Community-install-process
+cd /path/to/odoo-community-installer-18
 sudo ./post/00_health_check.sh
 ```
 
@@ -284,6 +279,5 @@ sudo ufw status
 ## Documentación relacionada
 
 - **Checklist completo:** [`INSTALL_CHECKLIST.md`](INSTALL_CHECKLIST.md)
-- **Consideraciones OCA para Odoo 18:** [`docs/install_considerations_odoo18.md`](docs/install_considerations_odoo18.md)
 - **Equivalencias Enterprise vs OCA:** [`docs/oca_modules.md`](docs/oca_modules.md)
 - **Repos OCA por versión:** [`config/oca_repos.conf`](config/oca_repos.conf)
