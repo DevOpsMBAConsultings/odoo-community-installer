@@ -1,8 +1,8 @@
-# Odoo Community Install – Qué hace el script (Checklist)
+# Odoo 19 Community Install – Qué hace el script (Checklist)
 
 Usa esta lista para ver todo lo que hace el script y verificar que nada falta tras una instalación limpia.
 
-> **Versión por defecto: Odoo 18** (estable en producción). Puedes instalar Odoo 19 indicándolo al inicio del script.
+> **Versión: Odoo 19** (Beta — verificar madurez de OCA).
 
 ---
 
@@ -10,7 +10,7 @@ Usa esta lista para ver todo lo que hace el script y verificar que nada falta tr
 
 | Ítem | Requerido | Notas |
 |------|-----------|-------|
-| Ubuntu 24.04 server | ✅ | VM limpia o bare metal |
+| Ubuntu 24.04 LTS | ✅ | VM limpia o bare metal |
 | Nombre de dominio | ✅ | e.g. `erp.example.com` (para Nginx + SSL) |
 | Email para Let's Encrypt | ✅ | Notificaciones y renovación SSL |
 | (Opcional) SSL storage remoto | — | S3/R2 o URL para backup/restore de certificados |
@@ -27,11 +27,11 @@ Usa esta lista para ver todo lo que hace el script y verificar que nada falta tr
 | 02 | `02_postgres.sh` | Instalar PostgreSQL, crear usuario `odoo` |
 | 02 | `02_wkhtmltopdf.sh` | Instalar wkhtmltopdf (versión parcheada para reportes PDF) |
 | 03 | `03_odoo_user_and_folders.sh` | Crear usuario `odoo`, `/opt/odoo/`, `/opt/odoo/oca/`, `/var/lib/odoo`, `/var/log/odoo` |
-| 04 | `04_clone_odoo.sh` | Clonar fuente de Odoo (e.g. 18) en `/opt/odoo/odoo18/odoo` |
-| 05 | `05_python_venv.sh` | Python venv en `/opt/odoo/odoo18/venv` |
+| 04 | `04_clone_odoo.sh` | Clonar fuente de Odoo 19 en `/opt/odoo/odoo19/odoo` |
+| 05 | `05_python_venv.sh` | Python venv en `/opt/odoo/odoo19/venv` |
 | 06 | `06_python_dependencies.sh` | Instalar `requirements.txt` de Odoo + **wand** |
-| 07 | `07_odoo_config.sh` | Generar `/etc/odoo18.conf` desde template (DB, admin password, addons_path con rutas OCA incluidas) |
-| 07 | `07_systemd_service.sh` | Crear y habilitar el servicio systemd `odoo18` |
+| 07 | `07_odoo_config.sh` | Generar `/etc/odoo19.conf` desde template (DB, admin password, addons_path con rutas OCA incluidas) |
+| 07 | `07_systemd_service.sh` | Crear y habilitar el servicio systemd `odoo19` |
 | **08a** | **`08_clone_oca_addons.sh`** | **Ver OCA Addons (08a) abajo** |
 | 08b | `08_clone_custom_addons.sh` | **Ver Custom Addons (08b) abajo** |
 | 09 | `09_init_database.sh` | **Ver Init database (09) abajo** |
@@ -51,9 +51,9 @@ Este script se ejecuta **solo si el usuario confirmó instalar módulos OCA** du
 | Ítem | Detalle |
 |------|---------|
 | **Fuente** | Variable `OCA_REPOS_LIST` (URLs, una por línea) calculada por `install.sh` desde `config/oca_repos.conf` |
-| **Rama** | `{ODOO_VERSION}.0` (e.g. `18.0`). Si no existe, usa la rama por defecto |
+| **Rama** | `19.0`. Si no existe, usa la rama por defecto |
 | **Destino** | `/opt/odoo/oca/<repo-name>/` — separado de los addons propios |
-| **addons_path** | Cada `/opt/odoo/oca/<repo>` ya fue inyectado en `/etc/odoo{VERSION}.conf` por el paso 07 vía `{{OCA_ADDON_PATHS}}` |
+| **addons_path** | Cada `/opt/odoo/oca/<repo>` ya fue inyectado en `/etc/odoo19.conf` por el paso 07 vía `{{OCA_ADDON_PATHS}}` |
 | **Python deps** | Instala `requirements.txt` de cada repo usando el venv de Odoo |
 | **Permisos** | `chown -R odoo:odoo /opt/odoo/oca && chmod -R 755 /opt/odoo/oca` |
 
@@ -61,32 +61,47 @@ Este script se ejecuta **solo si el usuario confirmó instalar módulos OCA** du
 - `OCA_REPOS_LIST` queda vacío → el script detecta esto y sale limpiamente sin hacer nada
 - `OCA_ADDON_PATHS` queda vacío → el template genera `addons_path` sin rutas OCA
 
-**addons_path resultante en `/etc/odoo18.conf` (con OCA):**
+**addons_path resultante en `/etc/odoo19.conf` (con OCA):**
 ```ini
-addons_path = /opt/odoo/auto-addons,/opt/odoo/odoo18/odoo/addons,/opt/odoo/oca/account-financial-reporting,/opt/odoo/oca/account-financial-tools,...,/opt/odoo/custom-addons
+addons_path = /opt/odoo/auto-addons,/opt/odoo/odoo19/odoo/addons,/opt/odoo/oca/account-financial-reporting,/opt/odoo/oca/account-financial-tools,...,/opt/odoo/custom-addons
 ```
 
-**Repos OCA disponibles para Odoo 18** (definidos en `config/oca_repos.conf`):
+**Repos OCA disponibles para Odoo 19** (definidos en `config/oca_repos.conf`):
 
-| Repositorio OCA | Equivalente Enterprise |
+| Repositorio OCA | Propósito |
 |---|---|
 | `account-financial-reporting` | Reportes financieros (trial balance, etc.) |
-| `account-financial-tools` | Dashboard contable, activos fijos, `account_usability` |
+| `account-financial-tools` | Dashboard contable, activos fijos, UX contable |
 | `account-reconcile` | Widget de conciliación bancaria |
 | `reporting-engine` | Exportación Excel (`report_xlsx`) |
 | `web` | Herramientas web adicionales |
 | `server-tools` | Herramientas técnicas del servidor |
 | `server-ux` | `date_range`, `base_tier_validation`, UX |
-| `server-brand` | Elimina banners y advertencias Enterprise |
+| `server-brand` | Elimina banners y advertencias Enterprise (no disponible en v16) |
 | `mis-builder` | P&L y Balance dinámico con fórmulas de cuentas |
 | `contract` | Suscripciones y facturación recurrente |
-| `helpdesk` | Mesa de soporte con SLA |
-| `dms` | Sistema de gestión documental |
-| `sign` | Firma electrónica simple |
+| `helpdesk` | Mesa de soporte con SLA (no disponible en v16) |
+| `dms` | Sistema de gestión documental (no disponible en v16) |
+| `sign` | Firma electrónica simple (no disponible en v16 y v17) |
+| `knowledge` | Base de conocimiento / wiki interno (no disponible en v16 y v17) |
 | `stock-logistics-barcode` | App de código de barras para inventario |
 | `manufacture` | PLM y Control de Calidad MRP |
 | `purchase-workflow` | Aprobaciones multi-nivel en compras |
 | `sale-workflow` | Aprobaciones multi-nivel en ventas |
+| `partner-contact` | Contactos y socios (campos extra) |
+| `automation` | Reglas de acción automatizadas (no disponible en v16 y v17) |
+| `bank-payment` | Pagos bancarios en lote |
+| `payroll` | Nómina Community |
+| `resource` | Planificación de turnos y recursos (no disponible en v16 y v17) |
+| `calendar` | Reservas online / citas (no disponible en v16 y v17) |
+| `vertical-rental` | Alquiler de productos (no disponible en v16 y v17) |
+| `delivery-carrier` | Gestión de transportistas |
+| `hr` | RRHH avanzado |
+| `field-service` | Servicio en campo (no disponible en v16) |
+| `social` | Marketing avanzado (no disponible en v16 y v17) |
+| `fleet` | Gestión de flota de vehículos |
+| `maintenance` | Mantenimiento de equipos y activos |
+| `repair` | Órdenes de reparación y servicio técnico |
 
 Para añadir repos o soportar otra versión: edita `config/oca_repos.conf`.
 
@@ -122,7 +137,7 @@ Para añadir repos o soportar otra versión: edita `config/oca_repos.conf`.
 
 | Variable | Por defecto | Significado |
 |----------|-----------|-----------  |
-| `DB_NAME` | `odoo${ODOO_VERSION}` | e.g. `odoo18` |
+| `DB_NAME` | `odoo${ODOO_VERSION}` | e.g. `odoo19` |
 | `ODOO_LANG` | `es_PA` | Idioma cargado con base |
 | `ODOO_COUNTRY_CODE` | `PA` | País por defecto de la empresa |
 | `ODOO_WITHOUT_DEMO` | `1` | Sin datos de demo |
@@ -175,14 +190,14 @@ Para añadir repos o soportar otra versión: edita `config/oca_repos.conf`.
 
 | Verificación | Cómo hacerlo |
 |---|---|
-| Servicio Odoo activo | `sudo systemctl status odoo18` |
+| Servicio Odoo activo | `sudo systemctl status odoo19` |
 | Login funciona | Abrir `https://TU_DOMINIO` |
 | Apps instaladas | Menú Apps: Ventas, Compras, CRM, Inventario, Contactos, Facturación |
 | País por defecto (PA) | Ajustes / Empresa / País; nuevo contacto: país por defecto |
 | Impuestos 0% (si PA) | Facturación → Configuración → Impuestos: "Exento 0% Venta", "Exento 0% Compra" |
-| addons_path incluye OCA | `grep addons_path /etc/odoo18.conf` debe mostrar rutas `/opt/odoo/oca/*` |
+| addons_path incluye OCA | `grep addons_path /etc/odoo19.conf` debe mostrar rutas `/opt/odoo/oca/*` |
 | OCA repos clonados | `ls /opt/odoo/oca/` debe listar todos los repos seleccionados |
-| Rutas no fantasma | `grep addons_path /etc/odoo18.conf \| tr ',' '\n' \| xargs -I{} ls -d {} 2>&1` — ninguna línea con "No such file" |
+| Rutas no fantasma | `grep addons_path /etc/odoo19.conf | tr ',' '\n' | xargs -I{} ls -d {} 2>&1` — ninguna línea con "No such file" |
 | UFW | `sudo ufw status`: 22, 80, 443 (y 8069 solo si `ALLOW_ODOO_PORT=1`) |
 | Nginx + SSL | HTTPS funciona; certificado de Let's Encrypt |
 
@@ -192,8 +207,8 @@ Para añadir repos o soportar otra versión: edita `config/oca_repos.conf`.
 
 | Ítem | Cuándo / Cómo |
 |------|---------------|
-| Instalar módulos OCA en UI | Apps → Update Apps List → buscar e instalar en el orden recomendado en `docs/install_considerations_odoo18.md` |
-| Actualizar repos OCA | `sudo -u odoo git -C /opt/odoo/oca/<repo> pull && systemctl restart odoo18` |
+| Instalar módulos OCA en UI | Apps → Update Apps List → buscar e instalar en el orden recomendado |
+| Actualizar repos OCA | `sudo -u odoo git -C /opt/odoo/oca/<repo> pull && systemctl restart odoo19` |
 | Diario FE, NC, posiciones fiscales PA | Si PA: el paso 09 los ejecuta automáticamente. Para BD existente: correr scripts en `install/scripts/`. |
 | Actualizar lista de Apps en UI | Apps → Update Apps List (si añades nuevos addons después) |
 
@@ -209,4 +224,4 @@ Para añadir repos o soportar otra versión: edita `config/oca_repos.conf`.
 
 ---
 
-*Documentación actualizada para reflejar el soporte de módulos OCA con selección automática por versión.*
+*Documentación actualizada para reflejar el soporte de módulos OCA con selección automática por versión en Odoo 19.*
