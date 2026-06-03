@@ -121,6 +121,23 @@ with cr_context as cr:
         else:
              print(f"  [EXISTS] Tax Group Category '{TAX_GROUP_NAME}'")
 
+        # Grupo de impuestos para Exento
+        exento_group_name = "Exento 0%"
+        exento_group = TaxGroup.search([
+            ("company_id", "=", company.id),
+            ("country_id", "=", country.id),
+            ("name", "=", exento_group_name),
+        ], limit=1)
+        if not exento_group:
+            exento_group = TaxGroup.create({
+                "name": exento_group_name,
+                "company_id": company.id,
+                "country_id": country.id,
+            })
+            print(f"  [CREATE] Tax Group Category '{exento_group_name}'")
+        else:
+             print(f"  [EXISTS] Tax Group Category '{exento_group_name}'")
+
         # ---------------------------------------------------------------------
         # Paso 2: Creación de Impuestos Base (Componentes)
         # ---------------------------------------------------------------------
@@ -160,13 +177,16 @@ with cr_context as cr:
                 ("name", "=", b_name),
             ], limit=1)
             
+            # Determine which group to use
+            current_group_id = exento_group.id if b_name == "ITBMS 0% (Operacion Exento de Impuesto)" else group.id
+
             vals = {
                 "name": b_name,
                 "type_tax_use": "sale",
                 "amount_type": "percent",
                 "amount": b_data["amount"],
                 "description": b_data["description"],
-                "tax_group_id": group.id,
+                "tax_group_id": current_group_id,
                 "country_id": country.id,
                 "company_id": company.id,
                 "price_include": False,
@@ -216,13 +236,16 @@ with cr_context as cr:
 
             child_ids = [created_base_taxes[c_name].id for c_name in g_data["children"]]
 
+            # Determine which group to use
+            current_group_id = exento_group.id if g_name == "Exento de Impuestos 100%" else group.id
+
             vals = {
                 "name": g_name,
                 "type_tax_use": "sale",
                 "amount_type": "group",
                 "company_id": company.id,
                 "country_id": country.id,
-                "tax_group_id": group.id,
+                "tax_group_id": current_group_id,
                 "children_tax_ids": [(6, 0, child_ids)],
                 "description": False,
                 "invoice_label": g_data["invoice_label"],
