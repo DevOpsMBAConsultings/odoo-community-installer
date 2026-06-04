@@ -106,37 +106,27 @@ with cr_context as cr:
         # ---------------------------------------------------------------------
         # Paso 1: Creación de grupo de impuestos (Tax Group) Category
         # ---------------------------------------------------------------------
-        group = TaxGroup.search([
-            ("company_id", "=", company.id),
-            ("country_id", "=", country.id),
-            ("name", "=", TAX_GROUP_NAME),
-        ], limit=1)
-        if not group:
-            group = TaxGroup.create({
-                "name": TAX_GROUP_NAME,
-                "company_id": company.id,
-                "country_id": country.id,
-            })
-            print(f"  [CREATE] Tax Group Category '{TAX_GROUP_NAME}'")
-        else:
-             print(f"  [EXISTS] Tax Group Category '{TAX_GROUP_NAME}'")
+        def get_or_create_tax_group(group_name):
+            domain = [("name", "=", group_name)]
+            if "company_id" in TaxGroup._fields:
+                domain.append(("company_id", "=", company.id))
+            if "country_id" in TaxGroup._fields:
+                domain.append(("country_id", "=", country.id))
+            g = TaxGroup.search(domain, limit=1)
+            if not g:
+                create_vals = {"name": group_name}
+                if "company_id" in TaxGroup._fields:
+                    create_vals["company_id"] = company.id
+                if "country_id" in TaxGroup._fields:
+                    create_vals["country_id"] = country.id
+                g = TaxGroup.create(create_vals)
+                print(f"  [CREATE] Tax Group Category '{group_name}'")
+            else:
+                print(f"  [EXISTS] Tax Group Category '{group_name}'")
+            return g
 
-        # Grupo de impuestos para Exento
-        exento_group_name = "Exento 0%"
-        exento_group = TaxGroup.search([
-            ("company_id", "=", company.id),
-            ("country_id", "=", country.id),
-            ("name", "=", exento_group_name),
-        ], limit=1)
-        if not exento_group:
-            exento_group = TaxGroup.create({
-                "name": exento_group_name,
-                "company_id": company.id,
-                "country_id": country.id,
-            })
-            print(f"  [CREATE] Tax Group Category '{exento_group_name}'")
-        else:
-             print(f"  [EXISTS] Tax Group Category '{exento_group_name}'")
+        group = get_or_create_tax_group(TAX_GROUP_NAME)
+        exento_group = get_or_create_tax_group("Exento 0%")
 
         # ---------------------------------------------------------------------
         # Paso 2: Creación de Impuestos Base (Componentes)

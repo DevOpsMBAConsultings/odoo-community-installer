@@ -78,22 +78,19 @@ with cr_context as cr:
             continue
 
         for amount, group_name, sale_desc, purchase_desc in ITBMS_SPECS:
-            group = TaxGroup.search(
-                [
-                    ("company_id", "=", company.id),
-                    ("country_id", "=", country.id),
-                    ("name", "=", group_name),
-                ],
-                limit=1,
-            )
+            domain = [("name", "=", group_name)]
+            if "company_id" in TaxGroup._fields:
+                domain.append(("company_id", "=", company.id))
+            if "country_id" in TaxGroup._fields:
+                domain.append(("country_id", "=", country.id))
+            group = TaxGroup.search(domain, limit=1)
             if not group:
-                group = TaxGroup.create(
-                    {
-                        "name": group_name,
-                        "company_id": company.id,
-                        "country_id": country.id,
-                    }
-                )
+                create_vals = {"name": group_name}
+                if "company_id" in TaxGroup._fields:
+                    create_vals["company_id"] = company.id
+                if "country_id" in TaxGroup._fields:
+                    create_vals["country_id"] = country.id
+                group = TaxGroup.create(create_vals)
                 print(f"Created tax group '{group.name}' for company {company.name}.")
 
             for type_tax_use, desc in [("sale", sale_desc), ("purchase", purchase_desc)]:

@@ -73,24 +73,24 @@ with cr_context as cr:
             continue
 
         # 1) Tax group "Exento 0%" for this company/country
-        group = TaxGroup.search(
-            [
-                ("company_id", "=", company.id),
-                ("country_id", "=", country.id),
-                "|",
-                ("name", "ilike", "Exento"),
-                ("name", "ilike", "Excento"),
-            ],
-            limit=1,
-        )
+        domain = []
+        if "company_id" in TaxGroup._fields:
+            domain.append(("company_id", "=", company.id))
+        if "country_id" in TaxGroup._fields:
+            domain.append(("country_id", "=", country.id))
+        domain.extend([
+            "|",
+            ("name", "ilike", "Exento"),
+            ("name", "ilike", "Excento"),
+        ])
+        group = TaxGroup.search(domain, limit=1)
         if not group:
-            group = TaxGroup.create(
-                {
-                    "name": "Exento 0%",
-                    "company_id": company.id,
-                    "country_id": country.id,
-                }
-            )
+            create_vals = {"name": "Exento 0%"}
+            if "company_id" in TaxGroup._fields:
+                create_vals["company_id"] = company.id
+            if "country_id" in TaxGroup._fields:
+                create_vals["country_id"] = country.id
+            group = TaxGroup.create(create_vals)
             print(f"Created tax group '{group.name}' for company {company.name}.")
 
         # 2) 0% tax Ventas

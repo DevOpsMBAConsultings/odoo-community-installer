@@ -67,14 +67,27 @@ PAYMENT_TERMS = [
     ("otro", 0),
 ]
 
-def _line_balance_days(days: int) -> dict:
-    """One line: 100% due after N days. Odoo 19: value='percent', value_amount=100, nb_days (no 'balance')."""
-    return {
-        "value": "percent",
-        "value_amount": 100.0,
-        "delay_type": "days_after",
-        "nb_days": days,
-    }
+def _line_balance_days(env, days: int) -> dict:
+    """One line: 100% due after N days. Dynamically handles Odoo 19+ (percent) vs older (balance)."""
+    LineModel = env["account.payment.term.line"]
+    fields = LineModel._fields
+    vals = {}
+    if "delay_type" in fields:
+        vals["delay_type"] = "days_after"
+    if "nb_days" in fields:
+        vals["nb_days"] = days
+    elif "days" in fields:
+        vals["days"] = days
+
+    if "value" in fields:
+        if "delay_type" in fields:
+            vals["value"] = "percent"
+            vals["value_amount"] = 100.0
+        else:
+            vals["value"] = "balance"
+            if "value_amount" in fields:
+                vals["value_amount"] = 0.0
+    return vals
 
 with cr_context as cr:
     env = api.Environment(cr, odoo.SUPERUSER_ID, {})
@@ -111,7 +124,7 @@ with cr_context as cr:
         PaymentTerm.create({
             "name": name,
             "sequence": seq,
-            "line_ids": [(0, 0, _line_balance_days(days))],
+            "line_ids": [(0, 0, _line_balance_days(env, days))],
         })
         created += 1
         due = f"due in {days} days" if days else "immediate"
