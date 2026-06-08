@@ -86,58 +86,7 @@ ALLOW_ODOO_PORT="${ALLOW_ODOO_PORT:-0}"
 ODOO_VERSION="19"
 echo "✅ Versión seleccionada: Odoo ${ODOO_VERSION}"
 
-while [[ -z "${DOMAIN:-}" ]]; do
-  read -r -p "Domain name (e.g. erp.example.com): " DOMAIN
-  if [[ -z "${DOMAIN}" ]]; then
-    # If running non-interactively, fail to avoid infinite loop
-    if [[ ! -t 0 ]]; then echo "ERROR: DOMAIN is required."; exit 1; fi
-    echo "❌ Domain is required."
-  fi
-done
-
-while [[ -z "${LETSENCRYPT_EMAIL:-}" ]]; do
-  read -r -p "Email for Let's Encrypt notifications: " LETSENCRYPT_EMAIL
-  if [[ -z "${LETSENCRYPT_EMAIL}" ]]; then
-    if [[ ! -t 0 ]]; then echo "ERROR: LETSENCRYPT_EMAIL is required."; exit 1; fi
-    echo "❌ Email is required."
-  fi
-done
-
 read -r -p "GitHub Token (Optional, for cloning private addons): " GITHUB_TOKEN
-
-# -------------------------------------------------------------------
-# Optional: remote SSL storage (certificates survive server reprovisioning)
-# Prompt at runtime so the repo stays public without secrets.
-# -------------------------------------------------------------------
-echo ""
-echo "Remote SSL storage (optional): store/restore certificates in S3/R2 so new servers reuse the cert."
-read -r -p "Use remote SSL storage? (s3/url/no) [no]: " ODOO_SSL_STORAGE
-ODOO_SSL_STORAGE="${ODOO_SSL_STORAGE:-no}"
-
-if [[ "${ODOO_SSL_STORAGE}" == "s3" ]]; then
-  read -r -p "S3/R2 bucket name [odoo-ssl-certs]: " ODOO_SSL_S3_BUCKET
-  ODOO_SSL_S3_BUCKET="${ODOO_SSL_S3_BUCKET:-odoo-ssl-certs}"
-  read -r -p "S3 endpoint URL (empty = AWS S3; for R2: https://ACCOUNT_ID.r2.cloudflarestorage.com): " ODOO_SSL_S3_ENDPOINT_URL
-  read -r -p "Access Key ID: " AWS_ACCESS_KEY_ID
-  read -s -r -p "Secret Access Key (hidden): " AWS_SECRET_ACCESS_KEY
-  echo ""
-  [[ -z "${AWS_ACCESS_KEY_ID}" || -z "${AWS_SECRET_ACCESS_KEY}" ]] && { echo "Access Key and Secret are required for S3. Skipping remote storage."; ODOO_SSL_STORAGE=""; }
-  export ODOO_SSL_S3_BUCKET
-  export ODOO_SSL_S3_ENDPOINT_URL
-  export AWS_ACCESS_KEY_ID
-  export AWS_SECRET_ACCESS_KEY
-elif [[ "${ODOO_SSL_STORAGE}" == "url" ]]; then
-  read -r -p "Restore URL (GET .tar.gz): " ODOO_SSL_RESTORE_URL
-  read -r -p "Backup URL (PUT .tar.gz, optional): " ODOO_SSL_BACKUP_URL
-  read -r -p "Backup token (optional): " ODOO_SSL_BACKUP_TOKEN
-  export ODOO_SSL_RESTORE_URL
-  export ODOO_SSL_BACKUP_URL
-  export ODOO_SSL_BACKUP_TOKEN
-else
-  ODOO_SSL_STORAGE=""
-  unset ODOO_SSL_S3_BUCKET ODOO_SSL_S3_ENDPOINT_URL AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY 2>/dev/null || true
-  unset ODOO_SSL_RESTORE_URL ODOO_SSL_BACKUP_URL ODOO_SSL_BACKUP_TOKEN 2>/dev/null || true
-fi
 
 # Odoo standard modules to install at init (default: sale,purchase,crm,stock,contacts,account). Leave empty for none.
 read -r -p "Odoo standard modules to install [sale,purchase,crm,stock,contacts,account]: " ODOO_EXTRA_MODULES
@@ -206,10 +155,7 @@ else
   echo "   Add a [VERSION_${ODOO_VERSION}] block to config/oca_repos.conf to enable this feature."
 fi
 
-export ODOO_SSL_STORAGE
 export ODOO_VERSION
-export DOMAIN
-export LETSENCRYPT_EMAIL
 export GITHUB_TOKEN
 export ODOO_EXTRA_MODULES
 export ALLOW_ODOO_PORT
@@ -236,7 +182,6 @@ REQUIRED_FILES=(
   "install/08_clone_custom_addons.sh"
   "install/09_init_database.sh"
   "install/10_ufw_firewall.sh"
-  "install/11_ngnix.sh"
   "post/00_health_check.sh"
   "post/10_summary.sh"
 )
@@ -269,7 +214,6 @@ run_step "install/08_clone_oca_addons.sh"      "Cloning OCA addons → /opt/odoo
 run_step "install/08_clone_custom_addons.sh"   "Cloning custom addons from Git"            1
 run_step "install/09_init_database.sh"          "Initializing database"                     0
 run_step "install/10_ufw_firewall.sh"          "Configuring firewall"                      1
-run_step "install/11_ngnix.sh"                 "Installing Nginx + SSL"                    1
 run_step "post/00_health_check.sh"             "Post install - health check"               0
 run_step "post/10_summary.sh"                  "Summary"                                   0
 
