@@ -15,13 +15,8 @@ ufw default deny incoming
 ufw default allow outgoing
 
 ufw allow OpenSSH
-ufw allow 80
-ufw allow 443
-# Allow direct Odoo port only when not using Nginx (set ALLOW_ODOO_PORT=1 before running install)
-if [[ "${ALLOW_ODOO_PORT:-0}" == "1" ]]; then
-  ufw allow 8069/tcp
-  echo "Port 8069 (Odoo) allowed for direct access."
-fi
+ufw allow 8069/tcp
+echo "Port 8069 (Odoo) allowed by default."
 
 # Enable ufw (non-interactive)
 ufw --force enable
