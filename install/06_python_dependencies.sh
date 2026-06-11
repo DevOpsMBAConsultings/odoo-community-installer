@@ -78,5 +78,17 @@ case "${ODOO_VERSION}" in
     ;;
 esac
 
-echo "✅ Python dependencies installed successfully for Odoo ${ODOO_VERSION}."
+# -------------------------------------------------------------------
+# FINAL CHECK: Ensure setuptools/pkg_resources survived all installs.
+# Installing gevent with Cython<3 or other legacy packages can
+# sometimes remove or break setuptools. Odoo requires pkg_resources.
+# -------------------------------------------------------------------
+echo ""
+echo ">>> Verifying setuptools/pkg_resources availability..."
+if ! sudo -u odoo "${VENV_PY}" -c "import pkg_resources" 2>/dev/null; then
+  echo "⚠️  pkg_resources missing after dependency install — re-installing setuptools..."
+  sudo -u odoo "${VENV_PY}" -m pip install --upgrade --force-reinstall setuptools
+fi
+sudo -u odoo "${VENV_PY}" -c "import pkg_resources; print(f'  ✅ pkg_resources OK (setuptools {pkg_resources.get_distribution(\"setuptools\").version})')"
 
+echo "✅ Python dependencies installed successfully for Odoo ${ODOO_VERSION}."

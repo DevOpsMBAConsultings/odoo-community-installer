@@ -161,6 +161,24 @@ echo "Defaults: LANG=${LANG_CODE}, COUNTRY=${COUNTRY_CODE}, WITHOUT_DEMO=${WITHO
 [[ -x "${ODOO_BIN}" ]] || { echo "Missing odoo-bin"; exit 1; }
 
 # ---------------------------------------------------------------------------
+# PRE-FLIGHT: Ensure pkg_resources (setuptools) is available in the venv.
+# On Python 3.12+ setuptools is not bundled and pip install of certain
+# packages (e.g. gevent with Cython<3) can remove or break it.
+# Odoo imports pkg_resources at startup, so this MUST exist.
+# ---------------------------------------------------------------------------
+if ! sudo -u "${ODOO_USER}" "${ODOO_PY}" -c "import pkg_resources" 2>/dev/null; then
+  echo "⚠️  pkg_resources not found in venv — installing setuptools..."
+  sudo -u "${ODOO_USER}" "${ODOO_HOME}/venv/bin/pip" install --upgrade setuptools 2>&1 | tail -3
+  # Verify it worked
+  if ! sudo -u "${ODOO_USER}" "${ODOO_PY}" -c "import pkg_resources" 2>/dev/null; then
+    echo "❌ FATAL: Could not install setuptools/pkg_resources in ${ODOO_HOME}/venv"
+    echo "   Odoo requires pkg_resources to start. Please fix the venv manually."
+    exit 1
+  fi
+  echo "✅ setuptools/pkg_resources installed successfully."
+fi
+
+# ---------------------------------------------------------------------------
 # DEFENSIVE CLEANUP: Stop service and kill any orphaned CLI processes
 # targeting this specific database. This releases all PostgreSQL locks
 # and prevents the script from hanging during DB checks or installations.
