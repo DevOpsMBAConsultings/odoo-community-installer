@@ -191,11 +191,11 @@ INIT_OK="$(
 if [[ "${INIT_OK}" == "1" ]]; then
   echo "Database already initialized. Applying default country, installing any missing modules, and (if PA) 0% taxes + journals + fiscal position."
 
-  # Detect version-aware demo flag (always use =all to prevent option swallowing)
-  if [[ "${ODOO_VERSION}" =~ ^[0-9]+$ ]] && (( ODOO_VERSION >= 19 )); then
+  # Use version-aware demo flag (always use =all to prevent option swallowing)
+  if [[ "${WITHOUT_DEMO}" == "1" ]]; then
     WITHOUT_DEMO_FLAG="--without-demo=all"
   else
-    WITHOUT_DEMO_FLAG="--without-demo"
+    WITHOUT_DEMO_FLAG=""
   fi
 
 
@@ -267,15 +267,12 @@ if [[ "${INIT_OK}" == "1" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# ODOO 18 vs 19+ flag differences:
-#   --without-demo   : Odoo 17/18 uses bare flag (no value)
-#   --without-demo=all : Odoo 19+ also accepts this form but 18 rejects it
-# We detect which form to use based on ODOO_VERSION.
+# Demo data flag configuration (uses --without-demo=all if WITHOUT_DEMO=1)
 # ---------------------------------------------------------------------------
-if [[ "${ODOO_VERSION}" =~ ^[0-9]+$ ]] && (( ODOO_VERSION >= 19 )); then
+if [[ "${WITHOUT_DEMO}" == "1" ]]; then
   WITHOUT_DEMO_FLAG="--without-demo=all"
 else
-  WITHOUT_DEMO_FLAG="--without-demo"
+  WITHOUT_DEMO_FLAG=""
 fi
 
 # INIT BASE — installs base + loads language pack into res.lang
